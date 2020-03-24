@@ -1,0 +1,24 @@
+<h1 style="text-align: center">MikeDB Status</h1>
+
+<p4>{{$ctrl.error}}</p4>
+<div>
+    <button ng-click="$ctrl.getPlayers()">Get all</button>
+    <button ng-click="$ctrl.setPlayers()">Set</button>
+    <button ng-click="$ctrl.addPlayers()">Add some</button>
+    <button ng-click="$ctrl.deletePlayers()">Delete all</button>
+    -
+    <button ng-click="$ctrl.setPlayers('some primitive string')">Set String</button>
+    <button ng-click="$ctrl.setPlayers(69420)">Set Number</button>
+    <button ng-click="$ctrl.setDate()">Set Date</button>
+    -
+    <button ng-click="$ctrl.badRequest()">Bad Request</button>
+</div>
+<ul>
+    <p ng-show="!$ctrl.players || $ctrl.players.length == 0">--- Nothing here yet. ---</p>
+    <li ng-repeat="p in $ctrl.players">
+        {{p}} -
+        <button ng-click="$ctrl.editPlayer(p)">...</button>
+    </li>
+</ul>
+<p>{{$ctrl.count}}</p>
+
