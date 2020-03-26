@@ -25,7 +25,7 @@ public class ApiKeysService {
     protected DbService getConfig() {
         if (config == null) {
             config = DbService.getConfig();
-            if (config.getObject(DEFAULT_API_KEY) == null) {
+            if (config.getItem(DEFAULT_API_KEY) == null) {
                 populateDefaultKey();
             }
             log.info("ApiKeysService found " + config.getItems().size() + " API keys");
@@ -42,14 +42,14 @@ public class ApiKeysService {
         ArrayList<Map<String, Object>> dbs = new ArrayList<>();
         dbs.add(db);
         apiKey.put("dbs", dbs);
-        config.putObject(DEFAULT_API_KEY, apiKey);
+        config.putItem(DEFAULT_API_KEY, apiKey);
     }
 
     protected boolean _isValidApiKey(String apiKey, Access access, String dbName) {
         if (apiKey == null || apiKey.isEmpty()) {
             return false;
         }
-        Object val = getConfig().getObject(apiKey);
+        Object val = getConfig().getItem(apiKey);
         if (val == null) {
             return false;
         }

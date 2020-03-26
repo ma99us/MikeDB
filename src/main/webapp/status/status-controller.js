@@ -1,8 +1,12 @@
 export class StatusController {
-  constructor(HostStorageService) {
+  constructor(API, HostStorageService) {
     'ngInject';
 
+    this.API = API;
     this.hostStorageService = HostStorageService;
+
+    this.dbName = API.HOST_DB_NAME;
+    this.key = "demo-key-" + Math.floor(Math.random() * Math.floor(100) + 1);
   }
 
   $onInit() {
@@ -14,7 +18,7 @@ export class StatusController {
   }
 
   getPlayers() {
-    this.hostStorageService.get("players").then(data => {
+    this.hostStorageService.get(this.key).then(data => {
       this.error = null;
       this.players = (!Array.isArray(data) && data !== null) ? [data] : data; // players should always be an array or null
       this.countPlayers();
@@ -29,7 +33,7 @@ export class StatusController {
         name: "Mike G.",
         status: "OK"
       };
-    this.hostStorageService.set("players", players).then(data => {
+    this.hostStorageService.set(this.key, players).then(data => {
       this.error = null;
       this.getPlayers();
     }).catch(err => {
@@ -39,7 +43,7 @@ export class StatusController {
 
   setDate() {
     const players = new Date();
-    this.hostStorageService.set("players", players).then(data => {
+    this.hostStorageService.set(this.key, players).then(data => {
       this.error = null;
       this.getPlayers();
     }).catch(err => {
@@ -61,7 +65,7 @@ export class StatusController {
         name: "Ian S.",
         status: "So-so"
       }];
-    this.hostStorageService.add("players", players).then(data => {
+    this.hostStorageService.add(this.key, players).then(data => {
       this.error = null;
       this.getPlayers();
     }).catch(err => {
@@ -70,7 +74,7 @@ export class StatusController {
   }
 
   deletePlayers() {
-    this.hostStorageService.delete("players").then(data => {
+    this.hostStorageService.delete(this.key).then(data => {
       this.error = null;
       this.getPlayers();
     }).catch(err => {
@@ -79,7 +83,7 @@ export class StatusController {
   }
 
   countPlayers() {
-    this.hostStorageService.count("players").then(data => {
+    this.hostStorageService.count(this.key).then(data => {
       this.error = null;
       this.count = data;
     }).catch(err => {
@@ -88,9 +92,34 @@ export class StatusController {
   }
 
   badRequest() {
-    this.hostStorageService.patch("players").then(data => {
+    this.hostStorageService.update(this.key).then(data => {
       this.error = null;
-      this.count = data;
+    }).catch(err => {
+      this.error = err;
+    })
+  }
+
+  updatePlayer(index, player) {
+    if(player.status === "Good") {
+      player.status = "OK"
+    } else if (player.status === "OK") {
+      player.status = "So-so";
+    } else if (player.status === "So-so") {
+      player.status = "Good";
+    }
+
+    this.hostStorageService.update(this.key, index, player).then(data => {
+      this.error = null;
+      this.getPlayers();
+    }).catch(err => {
+      this.error = err;
+    })
+  }
+
+  deletePlayer(index) {
+    this.hostStorageService.delete(this.key, index).then(data => {
+      this.error = null;
+      this.getPlayers();
     }).catch(err => {
       this.error = err;
     })

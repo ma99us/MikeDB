@@ -2,6 +2,8 @@ import lombok.Data;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Assert;
+import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.maggus.mikedb.KeyValuePairsApi;
 
@@ -28,11 +30,30 @@ public class KeyValuePairsApiTest extends JerseyTest {
     }
 
     @Test
+    public void dropDb() {
+        // open database and put something in it
+        WebTarget target = target("testDB");
+        Response response = decorateRequest(target.path("deleteMe").request())
+                .put(Entity.entity(new ObjectItem(), MediaType.APPLICATION_JSON));
+        Assert.assertEquals(201, response.getStatus());
+
+        // drop the whole db
+        response = decorateRequest(target.path("/").request())
+                .delete();
+        Assert.assertEquals(200, response.getStatus());
+
+        // try to drop it again
+        response = decorateRequest(target.path("/").request())
+                .delete();
+        Assert.assertEquals(204, response.getStatus());
+    }
+
+    @Test
     public void badApiKeyTest() throws Exception {
         WebTarget target = target("testDB");
         Exception ex = null;
         try {
-            ObjectItem value3 = target.path("testItem3").request(MediaType.APPLICATION_JSON)
+            ObjectItem value3 = target.path("testItem3").request()
                     .header("API_KEY", "WrongHackyKey")
                     .get(new GenericType<ObjectItem>() {
                     });
@@ -44,7 +65,7 @@ public class KeyValuePairsApiTest extends JerseyTest {
         Assert.assertNotNull(ex);
 
         try {
-            ObjectItem value3 = target.path("testItem3").request(MediaType.APPLICATION_JSON)
+            ObjectItem value3 = target.path("testItem3").request()
                     // no API_KEY header
                     .get(new GenericType<ObjectItem>() {
                     });
@@ -218,6 +239,54 @@ public class KeyValuePairsApiTest extends JerseyTest {
         //post new resource at /testDB/testString1
         String item1 = "Test String 1";
         Response response = decorateRequest(target.path("testString1").request())
+                .put(Entity.entity(item1, MediaType.TEXT_PLAIN));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(201, response.getStatus());
+
+        // get items count
+        int num = decorateRequest(target.path("testString1").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(1, num);
+
+        // get item
+        String value = decorateRequest(target.path("testString1").request())
+                .get(new GenericType<String>() {
+                });
+        System.out.println("item: " + value);
+        Assert.assertNotNull(value);
+
+        //add another item to existing resource at /testDB/testString1
+        String item2 = "Test String 2";
+        response = decorateRequest(target.path("testString1").request())
+                .post(Entity.entity(item2, MediaType.TEXT_PLAIN));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get new items count
+        num = decorateRequest(target.path("testString1").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(2, num);
+
+        // get item
+        List values = decorateRequest(target.path("testString1").request())
+                .get(new GenericType<List>() {
+                });
+        System.out.println("items: " + values);
+        Assert.assertNotNull(values);
+        Assert.assertEquals(2, values.size());
+    }
+
+    @Test
+    public void postItemsListTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        //post new resource at /testDB/testString1
+        String item1 = "Test String 1";
+        Response response = decorateRequest(target.path("testString1").request())
                 .put(Entity.entity(new String[]{item1}, MediaType.APPLICATION_JSON));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
@@ -232,10 +301,10 @@ public class KeyValuePairsApiTest extends JerseyTest {
         //add another item to existing resource at /testDB/testString1
         String item2 = "Test String 2";
         response = decorateRequest(target.path("testString1").request())
-                .post(Entity.entity(new String[]{item2}, MediaType.APPLICATION_JSON));
+                .post(Entity.entity(item2, MediaType.TEXT_PLAIN));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
-        Assert.assertEquals(201, response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
 
         // get new items count
         value = decorateRequest(target.path("testString1").request())
@@ -250,10 +319,124 @@ public class KeyValuePairsApiTest extends JerseyTest {
         System.out.println("items: " + values);
         Assert.assertNotNull(values);
         Assert.assertEquals(2, values.size());
+
+        // add a bunch of items
+        response = decorateRequest(target.path("testString1").request())
+                .post(Entity.entity(new String[]{"Test String 3", "Test String 4"}, MediaType.APPLICATION_JSON));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get new items count
+        value = decorateRequest(target.path("testString1").request())
+                .head().getLength();
+        System.out.println("item num: " + value);
+        Assert.assertEquals(4, value);
+
+        // insert a bunch of items
+        response = decorateRequest(target.path("testString1")
+                .queryParam("index", 1).request())
+                .post(Entity.entity(new String[]{"Test String 3", "Test String 4"}, MediaType.APPLICATION_JSON));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get new items count
+        value = decorateRequest(target.path("testString1").request())
+                .head().getLength();
+        System.out.println("item num: " + value);
+        Assert.assertEquals(6, value);
+
+        // get all items
+        values = decorateRequest(target.path("testString1").request())
+                .get(new GenericType<List>() {
+                });
+        Assert.assertNotNull(values);
+        Assert.assertEquals("Test String 3", values.get(1));
+    }
+
+
+    @Test
+    public void putDeleteItemsTest() throws Exception {
+        WebTarget target = target("testDB");
+        // add single item
+        Response response = decorateRequest(target.path("testString4").request())
+                .put(Entity.entity("Test String 4", MediaType.TEXT_PLAIN));
+        Assert.assertEquals(201, response.getStatus());
+
+        // get items count
+        int num = decorateRequest(target.path("testString4").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(1, num);
+
+        // delete item
+        response = decorateRequest(target.path("testString4").request())
+                .delete();
+        Assert.assertEquals(200, response.getStatus());
+
+        // get items count
+        num = decorateRequest(target.path("testString4").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(0, num);
+
+        // try to delete again
+        response = decorateRequest(target.path("testString4").request())
+                .delete();
+        Assert.assertEquals(204, response.getStatus());
     }
 
     @Test
-    public void quieryItemsTest() throws Exception {
+    public void postMultipleItemsTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        // make sure it is a new record
+        Response response = decorateRequest(target.path("testString4").request()).delete();
+
+        // add single item
+        response = decorateRequest(target.path("testString4").request())
+                .post(Entity.entity("Test String 4", MediaType.TEXT_PLAIN));
+        Assert.assertEquals(201, response.getStatus());
+
+        // get items count
+        int num = decorateRequest(target.path("testString4").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(1, num);
+
+         // get item
+        List values = decorateRequest(target.path("testString4").request())
+                .get(new GenericType<List>() {
+                });
+        System.out.println("items: " + values);
+        Assert.assertNotNull(values);
+        Assert.assertEquals(1, values.size());
+
+        // add multiple items
+        response = decorateRequest(target.path("testString5").request()).delete();
+        response = decorateRequest(target.path("testString5").request())
+                .post(Entity.entity(new String[]{"Test String 5", "Test String 6", "Test String 7"},
+                        MediaType.APPLICATION_JSON));
+        Assert.assertEquals(201, response.getStatus());
+
+        // get items count
+        num = decorateRequest(target.path("testString5").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(3, num);
+
+        // get item
+        values = decorateRequest(target.path("testString5").request())
+                .get(new GenericType<List>() {
+                });
+        System.out.println("items: " + values);
+        Assert.assertNotNull(values);
+        Assert.assertEquals(3, values.size());
+    }
+
+    @Test
+    public void queryItemsTest() throws Exception {
         WebTarget target = target("testDB");
 
         //post new resource at /testDB/testString1
@@ -267,13 +450,13 @@ public class KeyValuePairsApiTest extends JerseyTest {
                 .post(Entity.entity(new String[]{"Test String 2"}, MediaType.APPLICATION_JSON));
 //        System.out.println(response.getHeaderString("Location"));
 //        System.out.println(response.getStatus());
-        Assert.assertEquals(201, response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
 
         response = decorateRequest(target.path("testString1").request())
                 .post(Entity.entity(new String[]{"Test String 3"}, MediaType.APPLICATION_JSON));
 //        System.out.println(response.getHeaderString("Location"));
 //        System.out.println(response.getStatus());
-        Assert.assertEquals(201, response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
 
         // get items count
         int value = decorateRequest(target.path("testString1").request())
@@ -349,6 +532,43 @@ public class KeyValuePairsApiTest extends JerseyTest {
         System.out.println("item num: " + value);
         Assert.assertEquals(0, value);
     }
+
+    @Test
+    public void inMemoryDbTest() throws Exception {
+        ObjectItem item1 = new ObjectItem();
+        item1.setName("Test Name");
+        item1.setAge(69);
+        WebTarget target = target(":memory:testDB");
+
+        //put new resource at /testDB/testItem1
+        Response response = decorateRequest(target.path("testItem1").request())
+                .put(Entity.entity(item1, MediaType.APPLICATION_JSON));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(201, response.getStatus());
+
+        // try to get a deleted item
+        ObjectItem value = decorateRequest(target.path("testItem1").request(MediaType.APPLICATION_JSON))
+                .get(new GenericType<ObjectItem>() {
+                });
+        System.out.println("item: " + value);
+        Assert.assertNotNull(value);
+    }
+
+//    @Test
+//    public void patchItemsTest() throws Exception {
+//        WebTarget target = target("testDB");
+//
+//        //post new resource at /testDB/testString1
+//        Response response = decorateRequest(target.path("testString1").request())
+//                .put(null);
+//
+//        String value = decorateRequest(target.path("testString1").request())
+//                .get(new GenericType<String>() {
+//                });
+//        System.out.println("item: " + value);
+//        Assert.assertNotNull(value);
+//    }
 
     private List<ObjectItem> makeObjectItemList(int num){
         List<ObjectItem> items  = new ArrayList<>(num);

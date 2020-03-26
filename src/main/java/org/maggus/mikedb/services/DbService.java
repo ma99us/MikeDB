@@ -3,8 +3,7 @@ package org.maggus.mikedb.services;
 import lombok.extern.java.Log;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.util.logging.Level;
 
 @Log
@@ -12,13 +11,16 @@ public class DbService {
 
     private static Map<String, DbService> dbs = new HashMap<String, DbService>();
     public static final String CONFIG_DB_NAME = ".config";
+    public static final String IN_MEMORY_DB_NAME_PREFIX = ":memory:";
 
     private final PersistenceService storage = new PersistenceService(this);
     private final Map<String, Object> items = new HashMap<String, Object>();
     public final String dbName;
+    public final boolean inMemory;
 
     private DbService(String dbName) {
         this.dbName = dbName;
+        this.inMemory = dbName.startsWith(IN_MEMORY_DB_NAME_PREFIX);
         load();
     }
 
@@ -27,10 +29,24 @@ public class DbService {
     }
 
     public synchronized static DbService getDb(String dbName) throws IllegalArgumentException {
-        if (CONFIG_DB_NAME.equalsIgnoreCase(dbName) || !PersistenceService.isValidName(dbName)) {
+        if (CONFIG_DB_NAME.equalsIgnoreCase(dbName) ||
+                (!dbName.startsWith(IN_MEMORY_DB_NAME_PREFIX) && !PersistenceService.isValidName(dbName))) {
             throw new IllegalArgumentException("Illegal database name \"" + dbName + "\"");
         }
         return _getDb(dbName);
+    }
+
+    public synchronized static boolean dropDb(String dbName) {
+        DbService dbService = dbs.get(dbName);
+        if (dbService == null) {
+            return false;
+        }
+        log.warning("Dropping " + (dbService.inMemory ? "in-memory" : "") + " database: \"" + dbName + "\"");
+        boolean allRemoved = dbService.removeAllItems();
+        if (allRemoved) {
+            dbs.remove(dbName);
+        }
+        return allRemoved;
     }
 
     private static DbService _getDb(String dbName) {
@@ -38,37 +54,60 @@ public class DbService {
         if (dbService == null) {
             dbService = new DbService(dbName);
             dbs.put(dbName, dbService);
-            log.info("Opened database: \"" + dbName + "\"");
+            log.info("Opened " + (dbService.inMemory ? "in-memory" : "") + " database: \"" + dbName + "\"");
         }
         return dbService;
     }
 
-    public Object getObject(String key) {
+    public Object getItem(String key) {
         return items.get(key);
     }
 
-    public boolean putObject(String key, Object value) throws IllegalArgumentException {
+    public synchronized boolean putItem(String key, Object value) throws IllegalArgumentException {
         if (!PersistenceService.isValidName(key)) {
             throw new IllegalArgumentException("Illegal key \"" + key + "\"");
         }
-        Object prevVal = null;
         if (value == null) {
-            prevVal = items.remove(key);
-        } else {
-            prevVal = items.put(key, value);
+            throw new IllegalArgumentException("Value can not be null");
         }
-        boolean res = store(key, value);
-        if (!res) {
-            return false;
-        }
-        return prevVal != null || value != null;
+        items.put(key, value);
+        return store(key, value);
     }
 
-    public Map<String, Object> getItems() {
+    public synchronized boolean removeItem(String key) throws IllegalArgumentException {
+        if (!PersistenceService.isValidName(key)) {
+            throw new IllegalArgumentException("Illegal key \"" + key + "\"");
+        }
+        Object prevVal = items.remove(key);
+        return store(key, null) && prevVal != null;
+    }
+
+    protected synchronized boolean removeAllItems() {
+        Set<String> keys = new LinkedHashSet<>(items.keySet());
+        boolean allRemoved = true;
+        for (String key : keys) {
+            allRemoved &= removeItem(key);
+        }
+        log.warning("removeAllItems; allRemoved=" + allRemoved);
+        if (allRemoved && !inMemory) {
+            try {
+                storage.delete();
+            } catch (IOException ex) {
+                log.log(Level.SEVERE, dbName + " delete failed", ex);
+                return false;
+            }
+        }
+        return allRemoved;
+    }
+
+    protected Map<String, Object> getItems() {
         return items;
     }
 
     protected boolean store(String key, Object value) {
+        if(inMemory){
+            return true;
+        }
         try {
             storage.store(key, value);
             if (value != null) {
@@ -83,6 +122,9 @@ public class DbService {
     }
 
     protected void load() {
+        if(inMemory){
+            return;
+        }
         try {
             storage.load();
             log.info("Database \"" +dbName + "\" loaded with " + getItems().size() + " records");

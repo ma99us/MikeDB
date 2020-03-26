@@ -20,9 +20,21 @@ export class HostStorageService {
     else if (response && (response.status == 204)) {
       deferred.resolve(null);   // resource is empty
     }
-    else if (response) {
-      let message = 'Http error: (' + response.status + ') ' + response.statusText;
+    else if (response && (response.status || response.statusText)) {
+      let message = 'Http error:';
+      if (response.status) {
+        message += '(' + response.status + ')';
+      }
+      if (response.statusText) {
+        message += ' ' + response.statusText;
+      }
       deferred.reject(message);
+    }
+    else if (response && response.message) {
+      deferred.reject('Error: ' + response.message);
+    }
+    else if (response) {
+      deferred.reject(response);
     }
     else {
       deferred.reject('No response');
@@ -36,15 +48,11 @@ export class HostStorageService {
   prepareHeaders(value) {
     if (typeof value === 'string' && value !== null) {
       return {
-        headers: {
-          'Content-Type': 'text/plain',
-        }
+        'Content-Type': 'text/plain',
       };
     } else {
       return {
-        headers: {
-          'Content-Type': 'application/json',
-        }
+        'Content-Type': 'application/json',
       };
     }
   }
@@ -55,7 +63,8 @@ export class HostStorageService {
    */
   set(key, value) {
     const deferred = this.$q.defer();
-    this.$http.put(this.API.HOST_STORAGE_DB + key, value, this.prepareHeaders(value)).then(response => {
+    this.$http.put(this.API.HOST_STORAGE_URL + key, value,
+      {headers: this.prepareHeaders(value)}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);
@@ -72,7 +81,8 @@ export class HostStorageService {
     if (!Array.isArray(value)) {
       value = [value];
     }
-    this.$http.post(this.API.HOST_STORAGE_DB + key, value, this.prepareHeaders(value)).then(response => {
+    this.$http.post(this.API.HOST_STORAGE_URL + key, value,
+      {headers: this.prepareHeaders(value)}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);
@@ -89,7 +99,8 @@ export class HostStorageService {
    */
   get(key, firstResult = 0, maxResults = -1) {
     const deferred = this.$q.defer();
-    this.$http.get(this.API.HOST_STORAGE_DB + key, {params: {firstResult: firstResult, maxResults: maxResults}}).then(response => {
+    this.$http.get(this.API.HOST_STORAGE_URL + key,
+      {params: {firstResult: firstResult, maxResults: maxResults}}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);
@@ -104,7 +115,7 @@ export class HostStorageService {
    */
   count(key) {
     const deferred = this.$q.defer();
-    this.$http.head(this.API.HOST_STORAGE_DB + key).then(response => {
+    this.$http.head(this.API.HOST_STORAGE_URL + key).then(response => {
       response.data = response.headers('Content-Length');
       this.validateResponse(deferred, response);
     }, err => {
@@ -114,11 +125,12 @@ export class HostStorageService {
   }
 
   /**
-   * Delete a record with given Key
+   * Delete a record with given Key, or a single value from record's value list if 'index' provided
    */
-  delete(key) {
+  delete(key, index = null) {
     const deferred = this.$q.defer();
-    this.$http.delete(this.API.HOST_STORAGE_DB + key).then(response => {
+    this.$http.delete(this.API.HOST_STORAGE_URL + key,
+      {params: {index: index}}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);
@@ -127,15 +139,17 @@ export class HostStorageService {
   }
 
   /**
-   * Method Not Allowed
+   * Modify a single item in a collection associated with the key ('value = null' will delete an item)
    */
-  patch(key) {
+  update(key, index, value) {
     const deferred = this.$q.defer();
-    this.$http.patch(this.API.HOST_STORAGE_DB + key).then(response => {
+    this.$http.patch(this.API.HOST_STORAGE_URL + key, value,
+      {params: {index: index}, headers: this.prepareHeaders(value)}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);
     });
     return deferred.promise;
   }
+
 }

@@ -47,6 +47,10 @@ public class PersistenceService {
         return path.toFile();
     }
 
+    /**
+     * Load database content from the file system
+     * @throws IOException
+     */
     public void load() throws IOException {
         FileInputStream fi = null;
         try {
@@ -78,6 +82,12 @@ public class PersistenceService {
         }
     }
 
+    /**
+     * Process the latest database change. Store what's updated to the file system.
+     * @param key
+     * @param value
+     * @throws IOException
+     */
     public void store(String key, Object value) throws IOException {
         if(value == null){
             //delete old value files if any
@@ -114,6 +124,29 @@ public class PersistenceService {
                 fr.close();
             }
         }
+    }
+
+    /**
+     * Delete all files related to the database.
+     * Assume database is empty. All records were already properly deleted.
+     */
+    public void delete() throws IOException {
+        if (itemsFile == null) {
+            log.warning("No database files");
+            return;
+        }
+        File dbDir = itemsFile.getParentFile();
+        deleteDir(dbDir);
+    }
+
+    private void deleteDir(File dir){
+        File[] files = dir.listFiles();
+        if (files != null) {
+            for (File file : files) {
+                deleteDir(file);
+            }
+        }
+        dir.delete();
     }
 
     private ObjectMapper mapper = null;
