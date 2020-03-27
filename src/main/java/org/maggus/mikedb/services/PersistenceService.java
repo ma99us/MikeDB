@@ -74,10 +74,10 @@ public class PersistenceService {
                 // read from external file
                 File file = getValuesFile(property.substring(1));
                 if (file.isFile()) {
-                    items.put(key, fileToObject(file));
+                    items.put(key, JsonUtils.fileToObject(file));
                 }
             } else {
-                items.put(key, stringToObject(property));
+                items.put(key, JsonUtils.stringToObject(property));
             }
         }
     }
@@ -101,12 +101,12 @@ public class PersistenceService {
             }
             props.remove(key);
         } else {
-            String json = objectToString(value);
+            String json = JsonUtils.objectToString(value);
             if(json.length() > 1024){
                 // store to external file
                 String val = "v." + key + ".db";
                 File file = getValuesFile(val);
-                if(objectToFile(value, file)){
+                if(JsonUtils.objectToFile(value, file)){
                     props.put(key, "@" + val);
                 }
             } else {
@@ -149,53 +149,6 @@ public class PersistenceService {
         dir.delete();
     }
 
-    private ObjectMapper mapper = null;
-    private ObjectMapper getObjectMapper(){
-        if(mapper == null) {
-            mapper = new ObjectMapper();
-            mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
-            mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-        }
-        return mapper;
-    }
-
-    private boolean objectToFile(Object obj, File file) {
-        try {
-            getObjectMapper().writeValue(file, obj);
-            return true;
-        } catch (IOException ex) {
-            log.log(Level.WARNING, "Error storing object to file", ex);
-            return false;
-        }
-    }
-
-    private Object fileToObject(File file) {
-        try {
-            return getObjectMapper().readValue(file, Object.class);
-        } catch (IOException ex) {
-            log.log(Level.WARNING, "Error reading object from file", ex);
-            return null;
-        }
-    }
-
-    private String objectToString(Object obj) {
-        try {
-            return getObjectMapper().writeValueAsString(obj);
-        } catch (IOException ex) {
-            log.log(Level.WARNING, "Error storing object to string", ex);
-            return null;
-        }
-    }
-
-    private Object stringToObject(String json) {
-        try {
-            return getObjectMapper().readValue(json, Object.class);
-        } catch (IOException ex) {
-            log.log(Level.WARNING, "Error reading object from string", ex);
-            return null;
-        }
-    }
 
     public static boolean isValidName(String name) {
         File f = new File(name);

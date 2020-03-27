@@ -9,12 +9,12 @@ import java.util.logging.Level;
 @Log
 public class DbService {
 
-    private static Map<String, DbService> dbs = new HashMap<String, DbService>();
+    private static Map<String, DbService> dbs = new LinkedHashMap<>();
     public static final String CONFIG_DB_NAME = ".config";
     public static final String IN_MEMORY_DB_NAME_PREFIX = ":memory:";
 
     private final PersistenceService storage = new PersistenceService(this);
-    private final Map<String, Object> items = new HashMap<String, Object>();
+    private final Map<String, Object> items = new LinkedHashMap<>();
     public final String dbName;
     public final boolean inMemory;
 
@@ -36,7 +36,7 @@ public class DbService {
         return _getDb(dbName);
     }
 
-    public synchronized static boolean dropDb(String dbName) {
+    public static synchronized boolean dropDb(String dbName) {
         DbService dbService = dbs.get(dbName);
         if (dbService == null) {
             return false;
@@ -105,6 +105,8 @@ public class DbService {
     }
 
     protected boolean store(String key, Object value) {
+        notifyWebsocketSessions(key, value);
+
         if(inMemory){
             return true;
         }
@@ -131,5 +133,9 @@ public class DbService {
         } catch (IOException ex) {
             log.log(Level.SEVERE, dbName + " load failed", ex);
         }
+    }
+
+    protected void notifyWebsocketSessions(String key, Object value){
+       WebsocketSessionService.notifySessions(dbName, key, value);
     }
 }

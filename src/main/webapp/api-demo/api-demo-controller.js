@@ -1,4 +1,4 @@
-export class StatusController {
+export class ApiDemoController {
   constructor(API, HostStorageService) {
     'ngInject';
 

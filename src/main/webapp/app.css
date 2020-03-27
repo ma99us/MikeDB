@@ -1,2 +1,3 @@
 /* app css stylesheet */
-@import "./status/status-component.css";
+@import "./api-demo/api-demo-component.css";
+@import "./websocket/websocket-component.css";
