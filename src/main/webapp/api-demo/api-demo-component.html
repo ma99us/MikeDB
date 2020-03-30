@@ -18,18 +18,20 @@
             Demo database name: "{{$ctrl.dbName}}" -
             Demo values "key": <input type="text" placeholder="sample value key" ng-model="$ctrl.key">
         </div>
-        <ul>
-            <p ng-show="!$ctrl.players || $ctrl.players.length == 0">--- empty ---</p>
-            <li ng-repeat="p in $ctrl.players">
-                <div class="row">
-                    <div class="col-sm-7">{{p}}</div>
-                    <div class="col-sm-3">-
-                        <button ng-click="$ctrl.updatePlayer($index, p)">...</button>
-                        <button ng-click="$ctrl.deletePlayer($index)">X</button>
+        <div class="vertical-scroll">
+            <ul>
+                <p ng-show="!$ctrl.players || $ctrl.players.length == 0">--- empty ---</p>
+                <li ng-repeat="p in $ctrl.players">
+                    <div class="row">
+                        <div class="col-sm-7">{{p}}</div>
+                        <div class="col-sm-3">-
+                            <button ng-click="$ctrl.updatePlayer($index, p)">...</button>
+                            <button ng-click="$ctrl.deletePlayer($index)">X</button>
+                        </div>
                     </div>
-                </div>
-            </li>
-        </ul>
+                </li>
+            </ul>
+        </div>
         <div class="info text-info">Items count: {{$ctrl.count}}</div>
     </div>
 </div>

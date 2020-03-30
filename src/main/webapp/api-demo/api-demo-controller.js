@@ -1,16 +1,20 @@
 export class ApiDemoController {
-  constructor(API, HostStorageService) {
+  constructor(API, HostStorageService, MessageBusService) {
     'ngInject';
 
     this.API = API;
     this.hostStorageService = HostStorageService;
+    this.messageBusService = MessageBusService;
 
-    this.dbName = API.HOST_DB_NAME;
+      this.dbName = API.HOST_DB_NAME;
     this.key = "demo-key-" + Math.floor(Math.random() * Math.floor(100) + 1);
   }
 
   $onInit() {
     this.getPlayers();
+    this.messageBusService.on("key-update", (event, data) => {
+      this.getPlayers();
+    });
   }
 
   $onDestroy() {

@@ -36,13 +36,13 @@ public class DbService {
         return _getDb(dbName);
     }
 
-    public static synchronized boolean dropDb(String dbName) {
+    public static synchronized boolean dropDb(String dbName, String sessionId) {
         DbService dbService = dbs.get(dbName);
         if (dbService == null) {
             return false;
         }
         log.warning("Dropping " + (dbService.inMemory ? "in-memory" : "") + " database: \"" + dbName + "\"");
-        boolean allRemoved = dbService.removeAllItems();
+        boolean allRemoved = dbService.removeAllItems(sessionId);
         if (allRemoved) {
             dbs.remove(dbName);
         }
@@ -63,7 +63,7 @@ public class DbService {
         return items.get(key);
     }
 
-    public synchronized boolean putItem(String key, Object value) throws IllegalArgumentException {
+    public synchronized boolean putItem(String key, Object value, String sessionId) throws IllegalArgumentException {
         if (!PersistenceService.isValidName(key)) {
             throw new IllegalArgumentException("Illegal key \"" + key + "\"");
         }
@@ -71,22 +71,22 @@ public class DbService {
             throw new IllegalArgumentException("Value can not be null");
         }
         items.put(key, value);
-        return store(key, value);
+        return store(key, value, sessionId);
     }
 
-    public synchronized boolean removeItem(String key) throws IllegalArgumentException {
+    public synchronized boolean removeItem(String key, String sessionId) throws IllegalArgumentException {
         if (!PersistenceService.isValidName(key)) {
             throw new IllegalArgumentException("Illegal key \"" + key + "\"");
         }
         Object prevVal = items.remove(key);
-        return store(key, null) && prevVal != null;
+        return store(key, null, sessionId) && prevVal != null;
     }
 
-    protected synchronized boolean removeAllItems() {
+    protected synchronized boolean removeAllItems(String sessionId) {
         Set<String> keys = new LinkedHashSet<>(items.keySet());
         boolean allRemoved = true;
         for (String key : keys) {
-            allRemoved &= removeItem(key);
+            allRemoved &= removeItem(key, sessionId);
         }
         log.warning("removeAllItems; allRemoved=" + allRemoved);
         if (allRemoved && !inMemory) {
@@ -104,8 +104,8 @@ public class DbService {
         return items;
     }
 
-    protected boolean store(String key, Object value) {
-        notifyWebsocketSessions(key, value);
+    protected boolean store(String key, Object value, String sessionId) {
+        notifyWebsocketSessions(key, value, sessionId);
 
         if(inMemory){
             return true;
@@ -135,7 +135,7 @@ public class DbService {
         }
     }
 
-    protected void notifyWebsocketSessions(String key, Object value){
-       WebsocketSessionService.notifySessions(dbName, key, value);
+    protected void notifyWebsocketSessions(String key, Object value, String sessionId){
+       WebsocketSessionService.notifySessions(dbName, key, value, sessionId);
     }
 }

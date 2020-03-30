@@ -2,16 +2,16 @@
     <h6 class="card-header">Websocket notifications</h6>
     <div class="card-body container">
         <div>
-            <button ng-click="$ctrl.connect()">Connect</button>
-            <button ng-click="$ctrl.disconnect()">Disconnect</button>
+            <button ng-disabled="$ctrl.dataStream !== null" ng-click="$ctrl.connect()">Connect</button>
+            <button ng-disabled="$ctrl.dataStream == null" ng-click="$ctrl.disconnect()">Disconnect</button>
         </div>
-        <div>
+        <div class="vertical-scroll">
             <p ng-repeat="m in $ctrl.messages track by $index">{{m}}
             </p>
         </div>
         <div>
             <input type="text" placeholder="say something" ng-model="$ctrl.txt">
-            <button ng-click="$ctrl.send($ctrl.txt)">Send</button>
+            <button ng-disabled="$ctrl.dataStream == null" ng-click="$ctrl.send($ctrl.txt)">Send</button>
         </div>
     </div>
 </div>

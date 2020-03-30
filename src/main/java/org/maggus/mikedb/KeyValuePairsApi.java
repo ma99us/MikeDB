@@ -24,7 +24,7 @@ public class KeyValuePairsApi {
 
     @HEAD
     @Path("/{key}")
-    public Response countObjects(@HeaderParam("API_KEY") String apiKey,
+    public Response countObjects(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                  @PathParam("dbName") String dbName, @PathParam("key") String key) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.READ, dbName)) {
@@ -48,10 +48,9 @@ public class KeyValuePairsApi {
         }
     }
 
-
     @GET
     @Path("/{key}")
-    public Response getObject(@HeaderParam("API_KEY") String apiKey,
+    public Response getObject(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName, @PathParam("key") String key,
                               @QueryParam("firstResult") @DefaultValue("0") int firstResult,
                               @QueryParam("maxResults") @DefaultValue("-1") int maxResults) {
@@ -81,7 +80,7 @@ public class KeyValuePairsApi {
 
     @PUT
     @Path("/{key}")
-    public Response setObject(@HeaderParam("API_KEY") String apiKey,
+    public Response setObject(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName, @PathParam("key") String key, Object value) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.WRITE, dbName)) {
@@ -93,7 +92,7 @@ public class KeyValuePairsApi {
 
             DbService db = DbService.getDb(dbName);
 
-            if (db.putItem(key, value)) {
+            if (db.putItem(key, value, sessionId)) {
                 final URI processIdUri = UriBuilder.fromResource(KeyValuePairsApi.class).path("/{key}").build(dbName, key);
                 return Response.created(processIdUri).type(prepareMediaType(value)).entity(value).build();
             } else {
@@ -112,14 +111,14 @@ public class KeyValuePairsApi {
     @Path("/{key}")
     @Produces({MediaType.APPLICATION_JSON})
     @Consumes({MediaType.TEXT_PLAIN})
-    public Response setString(@HeaderParam("API_KEY") String apiKey,
+    public Response setString(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName, @PathParam("key") String key, String value) {
-        return setObject(apiKey, dbName, key, value);
+        return setObject(apiKey, sessionId, dbName, key, value);
     }
 
     @POST
     @Path("/{key}")
-    public Response addObjects(@HeaderParam("API_KEY") String apiKey,
+    public Response addObjects(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                @PathParam("dbName") String dbName, @PathParam("key") String key,
                                @QueryParam("index") @DefaultValue("-1") int index, Object value) {
         try {
@@ -149,7 +148,7 @@ public class KeyValuePairsApi {
                 valList.add(index, value);
             }
 
-            if (DbService.getDb(dbName).putItem(key, valList)) {
+            if (DbService.getDb(dbName).putItem(key, valList, sessionId)) {
                 if(object == null){
                     final URI processIdUri = UriBuilder.fromResource(KeyValuePairsApi.class).path("/{key}").build(dbName, key);
                     return Response.created(processIdUri).type(prepareMediaType(value)).entity(value).build();
@@ -172,15 +171,15 @@ public class KeyValuePairsApi {
     @Path("/{key}")
     @Produces({MediaType.APPLICATION_JSON})
     @Consumes({MediaType.TEXT_PLAIN})
-    public Response addStrings(@HeaderParam("API_KEY") String apiKey,
+    public Response addStrings(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                @PathParam("dbName") String dbName, @PathParam("key") String key,
                                @QueryParam("index") @DefaultValue("-1") int index, String value) {
-        return addObjects(apiKey, dbName, key, index, value);
+        return addObjects(apiKey, sessionId, dbName, key, index, value);
     }
 
     @DELETE
     @Path("/{key}")
-    public Response deleteKey(@HeaderParam("API_KEY") String apiKey,
+    public Response deleteKey(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName, @PathParam("key") String key,
                               @QueryParam("index") @DefaultValue("-1") int index) {
         try {
@@ -192,7 +191,7 @@ public class KeyValuePairsApi {
             Object object = db.getItem(key);
             if (index < 0) {
                 // remove the Key completely
-                if (DbService.getDb(dbName).removeItem(key)) {
+                if (DbService.getDb(dbName).removeItem(key, sessionId)) {
                     return Response.ok().build();
                 } else {
                     return Response.noContent().build();
@@ -205,7 +204,7 @@ public class KeyValuePairsApi {
                     throw new IllegalArgumentException("Bad index " + index);
                 }
                 valList.remove(index);
-                if (DbService.getDb(dbName).putItem(key, valList)) {
+                if (DbService.getDb(dbName).putItem(key, valList, sessionId)) {
                     return Response.ok().build();
                 } else {
                     return Response.noContent().build();
@@ -222,14 +221,14 @@ public class KeyValuePairsApi {
 
     @DELETE
     @Path("/")
-    public Response dropDb(@HeaderParam("API_KEY") String apiKey,
+    public Response dropDb(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.WRITE, dbName)) {
                 throw new IllegalArgumentException("Bad or missing API_KEY header");
             }
 
-            if (DbService.dropDb(dbName)) {
+            if (DbService.dropDb(dbName, sessionId)) {
                 return Response.ok().build();
             } else {
                 return Response.noContent().build();
@@ -246,7 +245,7 @@ public class KeyValuePairsApi {
 
     @PATCH
     @Path("/{key}")
-    public Response updateObjects(@HeaderParam("API_KEY") String apiKey,
+    public Response updateObjects(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                   @PathParam("dbName") String dbName, @PathParam("key") String key,
                                   @QueryParam("index") @DefaultValue("-1") int index, Object value) {
         try {
@@ -260,7 +259,7 @@ public class KeyValuePairsApi {
             DbService db = DbService.getDb(dbName);
             Object object = db.getItem(key);
             if (index < 0) {
-                return setObject(apiKey, dbName, key, value);
+                return setObject(apiKey, sessionId, dbName, key, value);
             } else if (!(object instanceof List)) {
                 throw new IllegalArgumentException("Unexpected index " + index + ". Value is not a collection");
             } else {
@@ -269,7 +268,7 @@ public class KeyValuePairsApi {
                     throw new IllegalArgumentException("Bad index " + index);
                 }
                 valList.set(index, value);
-                if (DbService.getDb(dbName).putItem(key, valList)) {
+                if (DbService.getDb(dbName).putItem(key, valList, sessionId)) {
                     return Response.ok().type(prepareMediaType(value)).entity(value).build();
                 } else {
                     return Response.noContent().build();
@@ -288,10 +287,10 @@ public class KeyValuePairsApi {
     @Path("/{key}")
     @Produces({MediaType.APPLICATION_JSON})
     @Consumes({MediaType.TEXT_PLAIN})
-    public Response updateStrings(@HeaderParam("API_KEY") String apiKey,
+    public Response updateStrings(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                   @PathParam("dbName") String dbName, @PathParam("key") String key,
                                   @QueryParam("index") @DefaultValue("-1") int index, String value) {
-        return updateObjects(apiKey, dbName, key, index, value);
+        return updateObjects(apiKey, sessionId, dbName, key, index, value);
     }
 
     /**

@@ -36,7 +36,7 @@ public class WebSocketResource {
             WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getSession(session, dbName);
             if(handler == null) {
                 // expect API_KEY message first
-                String apiKey = decodeKey(message);
+                String apiKey = decodeApiKey(message);
                 if (apiKey == null || !ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.READ, dbName)) {
                     throw new IllegalArgumentException("Session is not opened. Bad or missing API_KEY message");
                 }
@@ -70,7 +70,7 @@ public class WebSocketResource {
         }
     }
 
-    protected String decodeKey(String message){
+    protected String decodeApiKey(String message){
         Object object = JsonUtils.stringToObject(message);
         if(!(object instanceof Map)){
             return null;

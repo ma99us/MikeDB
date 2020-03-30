@@ -5,7 +5,8 @@
 import {API} from "./config-constant.js";
 
 // import global app services
-import {HostStorageService} from "./host-storage-service.js";
+import {HostStorageService} from "./services/host-storage-service.js";
+import {MessageBusService} from "./services/message-bus-service.js";
 
 // import app components
 import {ApiDemoComponent} from "./api-demo/api-demo-component.js";
@@ -23,6 +24,7 @@ export const App = angular.module('App', ['ngWebSocket'])
   })
   .constant('API', API)
   .service('HostStorageService', HostStorageService)
+  .service('MessageBusService', MessageBusService)
   .component('apiDemo', ApiDemoComponent)
   .component('websocket', WebsocketComponent)
   .run(function () {

@@ -6,7 +6,17 @@ export class HostStorageService {
     this.$q = $q;
     this.API = API;
 
-    $http.defaults.headers.common.API_KEY = this.API.HOST_API_KEY;
+    this.$http.defaults.headers.common.API_KEY = this.API.HOST_API_KEY;
+    this.sessionId = null;
+  }
+
+  set session(sessionId) {
+    this.sessionId = sessionId;
+    this.$http.defaults.headers.common.SESSION_ID = this.sessionId;
+  }
+
+  get session() {
+    return this.sessionId;
   }
 
   /**

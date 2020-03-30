@@ -3,7 +3,6 @@ package org.maggus.mikedb.services;
 import lombok.Data;
 import lombok.extern.java.Log;
 
-import javax.websocket.MessageHandler;
 import javax.websocket.Session;
 import java.io.IOException;
 import java.util.*;
@@ -56,11 +55,16 @@ public class WebsocketSessionService {
         return dbSessions != null ? dbSessions.stream().filter(s -> s.getSession() == session).findAny().orElse(null) : null;
     }
 
-    public static void notifySessions(String dbName, String key, Object value) {
+    public static void notifySessions(String dbName, String key, Object value, String sessionId) {
         List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
         if(dbSessions != null){
+            DbEvent event = new DbEvent();
+            event.setSessionId(sessionId);
+            event.setEvent(value != null ? DbEvent.Type.UPDATED.toString() : DbEvent.Type.DELETED.toString());
+            event.setKey(key);
+            event.setValue(value);
             for(SessionHandler handler : dbSessions){
-                handler.sendMessage("> Database Key updated: \"" + key + "\"");
+                handler.sendObject(event);
             }
         }
     }
@@ -84,7 +88,11 @@ public class WebsocketSessionService {
 
         public void onOpen() {
             log.info("Session "+session.getId()+" has opened database \"" + dbName + "\"");
-            sendMessage("> Session "+session.getId()+" has opened database \"" + dbName + "\"");
+            //sendMessage("> Session "+session.getId()+" has opened database \"" + dbName + "\"");
+            DbEvent event = new DbEvent();
+            event.setSessionId(dbName + "-" + session.getId()); // TODO: add some unique number here?
+            event.setEvent(DbEvent.Type.OPENED.toString());
+            sendObject(event);
         }
 
         public void onClose() {
@@ -121,5 +129,15 @@ public class WebsocketSessionService {
             return Objects.hash(getSession());
         }
     }
+}
+
+@Data
+class DbEvent {
+    enum Type {OPENED, INSERTED, UPDATED, DELETED, DROPPED, CLOSED}
+
+    private String sessionId;
+    private String event;
+    private String key;
+    private Object value;
 }
 
