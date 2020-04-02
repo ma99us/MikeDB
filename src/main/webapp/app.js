@@ -18,8 +18,10 @@ export const App = angular.module('App', ['ngWebSocket'])
 
     $sceDelegateProvider.resourceUrlWhitelist([
       // Allow same origin resource loads.
-      'self'
+      'self',
       // Allow loading from our assets domain.  Notice the difference between * and **.
+      'http://gerdov.com/mike-db/**',
+      'ws://gerdov.com/mike-db/**'
     ]);
   })
   .constant('API', API)

@@ -55,7 +55,7 @@ public class WebsocketSessionService {
         return dbSessions != null ? dbSessions.stream().filter(s -> s.getSession() == session).findAny().orElse(null) : null;
     }
 
-    public static void notifySessions(String dbName, String key, Object value, String sessionId) {
+    public static void notifySessionsDbEvent(String dbName, String key, Object value, String sessionId) {
         List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
         if(dbSessions != null){
             DbEvent event = new DbEvent();
@@ -65,6 +65,16 @@ public class WebsocketSessionService {
             event.setValue(value);
             for(SessionHandler handler : dbSessions){
                 handler.sendObject(event);
+            }
+        }
+    }
+
+    public static void notifySessionsMessage(String dbName, String message, String sessionId) {
+        List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
+        if (dbSessions != null) {
+            String msg = "\"" + sessionId + "\" > " + message;
+            for (SessionHandler handler : dbSessions) {
+                handler.sendMessage(msg);
             }
         }
     }
@@ -79,6 +89,7 @@ public class WebsocketSessionService {
         private final Session session;
         private final String apiKey;
         private final String dbName;
+        private String sessionId;
 
         public SessionHandler(Session session, String dbName, String apiKey) {
             this.session = session;
@@ -87,21 +98,24 @@ public class WebsocketSessionService {
         }
 
         public void onOpen() {
-            log.info("Session "+session.getId()+" has opened database \"" + dbName + "\"");
             //sendMessage("> Session "+session.getId()+" has opened database \"" + dbName + "\"");
+            setSessionId(dbName + "-" + session.getId());   // TODO: add some unique number here?
+            log.info("Session \"" + getSessionId() + "\" has opened database \"" + dbName + "\"");
+
             DbEvent event = new DbEvent();
-            event.setSessionId(dbName + "-" + session.getId()); // TODO: add some unique number here?
+            event.setSessionId(getSessionId());
             event.setEvent(DbEvent.Type.OPENED.toString());
             sendObject(event);
         }
 
         public void onClose() {
-            log.info("Session " + session.getId() + " has closed");
+            log.info("Session " + getSessionId() + " has closed");
         }
 
         public void onMessage(String message) {
-            log.info("Message from " + session.getId() + ": " + message);
-            sendMessage("> " + message);
+            log.info("Message from " + getSessionId() + ": " + message);
+            //sendMessage("> " + message);
+            WebsocketSessionService.notifySessionsMessage(getDbName(), message, getSessionId());
         }
 
         public void sendMessage(String message) {

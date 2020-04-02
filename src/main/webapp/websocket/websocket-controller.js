@@ -38,6 +38,7 @@ export class WebsocketController {
       this.send({API_KEY: this.API.HOST_API_KEY});  // got to send API_KEY first thing otherwise socket will be closed
     }).onClose(() => {
       this.messages.push("--- socket closed");
+      this.dataStream = null;
     }).onError(err => {
       this.messages.push("--- error:" + err);
     });
@@ -48,7 +49,6 @@ export class WebsocketController {
       return;
     }
     this.dataStream.close();
-    this.dataStream = null;
   }
 
   send(value) {
@@ -67,7 +67,7 @@ export class WebsocketController {
 
     if (event.event === "OPENED" && event.sessionId) {
       this.hostStorageService.session = event.sessionId;
-      this.messages.push("--- new session id: " + event.sessionId);
+      this.messages.push("--- new session id: \"" + event.sessionId + "\"");
     } else if (this.hostStorageService.session !== event.sessionId) {
       this.messages.push(message);
       this.notify(event.key);

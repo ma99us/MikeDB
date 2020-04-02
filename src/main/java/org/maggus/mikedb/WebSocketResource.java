@@ -12,7 +12,9 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.logging.Level;
 
-@ServerEndpoint("/websocket/{dbName}")
+//@ServerEndpoint(value = "/subscribe/{dbName}",
+//        configurator = WebSocketConfigurator.class)
+@ServerEndpoint("/subscribe/{dbName}")
 @Log
 public class WebSocketResource {
 
@@ -42,6 +44,7 @@ public class WebSocketResource {
                 }
                 handler = WebsocketSessionService.openSession(session, dbName, apiKey);
             } else {
+                //parse the rest of possible messages
                 handler.onMessage(message);
             }
         } catch (IllegalArgumentException ex) {

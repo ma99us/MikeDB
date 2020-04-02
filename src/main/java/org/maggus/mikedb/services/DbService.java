@@ -136,6 +136,6 @@ public class DbService {
     }
 
     protected void notifyWebsocketSessions(String key, Object value, String sessionId){
-       WebsocketSessionService.notifySessions(dbName, key, value, sessionId);
+       WebsocketSessionService.notifySessionsDbEvent(dbName, key, value, sessionId);
     }
 }
