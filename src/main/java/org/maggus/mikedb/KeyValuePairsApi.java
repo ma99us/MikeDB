@@ -8,9 +8,7 @@ import org.maggus.mikedb.services.DbService;
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+import java.util.*;
 import java.util.logging.Level;
 
 @Path("/{dbName}")
@@ -93,8 +91,8 @@ public class KeyValuePairsApi {
             DbService db = DbService.getDb(dbName);
 
             if (db.putItem(key, value, sessionId)) {
-                final URI processIdUri = UriBuilder.fromResource(KeyValuePairsApi.class).path("/{key}").build(dbName, key);
-                return Response.created(processIdUri).type(prepareMediaType(value)).entity(value).build();
+                //final URI processIdUri = UriBuilder.fromResource(KeyValuePairsApi.class).path(key).build(dbName);
+                return Response.created(new URI("/"+dbName+"/"+key)).type(prepareMediaType(value)).entity(value).build();
             } else {
                 return Response.noContent().build();
             }
@@ -120,7 +118,7 @@ public class KeyValuePairsApi {
     @Path("/{key}")
     public Response addObjects(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                @PathParam("dbName") String dbName, @PathParam("key") String key,
-                               @QueryParam("index") @DefaultValue("-1") int index, Object value) {
+                               @QueryParam("index") Integer index, Object value) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.WRITE, dbName)) {
                 throw new IllegalArgumentException("Bad or missing API_KEY header");
@@ -138,20 +136,26 @@ public class KeyValuePairsApi {
                 valList.add(object);
             }
 
-            if (value instanceof List && (index < 0 || index >= valList.size())) {
+            if (value instanceof List && index == null) {
                 valList.addAll(((List) value));
             } else if (value instanceof List) {
+                 if(index < 0 || index >= valList.size()){
+                     throw new IllegalArgumentException("Bad index " + index);
+                 }
                 valList.addAll(index, ((List) value));
-            } else if (index < 0 || index >= valList.size()) {
+            } else if (index == null) {
                 valList.add(value);
             } else {
+                if (index < 0 || index >= valList.size()) {
+                    throw new IllegalArgumentException("Bad index " + index);
+                }
                 valList.add(index, value);
             }
 
             if (DbService.getDb(dbName).putItem(key, valList, sessionId)) {
                 if(object == null){
-                    final URI processIdUri = UriBuilder.fromResource(KeyValuePairsApi.class).path("/{key}").build(dbName, key);
-                    return Response.created(processIdUri).type(prepareMediaType(value)).entity(value).build();
+                    //final URI processIdUri = UriBuilder.fromResource(KeyValuePairsApi.class).path(key).build(dbName);
+                    return Response.created(new URI("/"+dbName+"/"+key)).type(prepareMediaType(value)).entity(value).build();
                 } else {
                     return Response.ok().type(prepareMediaType(value)).entity(value).build();
                 }
@@ -173,7 +177,7 @@ public class KeyValuePairsApi {
     @Consumes({MediaType.TEXT_PLAIN})
     public Response addStrings(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                @PathParam("dbName") String dbName, @PathParam("key") String key,
-                               @QueryParam("index") @DefaultValue("-1") int index, String value) {
+                               @QueryParam("index") Integer index, String value) {
         return addObjects(apiKey, sessionId, dbName, key, index, value);
     }
 
@@ -181,7 +185,7 @@ public class KeyValuePairsApi {
     @Path("/{key}")
     public Response deleteKey(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName, @PathParam("key") String key,
-                              @QueryParam("index") @DefaultValue("-1") int index) {
+                              @QueryParam("index") Integer index, @QueryParam("id") Long id) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.WRITE, dbName)) {
                 throw new IllegalArgumentException("Bad or missing API_KEY header");
@@ -189,16 +193,18 @@ public class KeyValuePairsApi {
 
             DbService db = DbService.getDb(dbName);
             Object object = db.getItem(key);
-            if (index < 0) {
+            if (index == null && id == null) {
                 // remove the Key completely
                 if (DbService.getDb(dbName).removeItem(key, sessionId)) {
                     return Response.ok().build();
                 } else {
                     return Response.noContent().build();
                 }
-            } else if (!(object instanceof List)) {
-                throw new IllegalArgumentException("Unexpected index " + index + ". Value is not a collection");
-            } else {
+            } else if (index != null) {
+                // delete by index
+                if (!(object instanceof List)) {
+                    throw new IllegalArgumentException("Unexpected index " + index + ". Value is not a collection");
+                }
                 List valList = (List) object;
                 if (index >= valList.size()) {
                     throw new IllegalArgumentException("Bad index " + index);
@@ -209,7 +215,36 @@ public class KeyValuePairsApi {
                 } else {
                     return Response.noContent().build();
                 }
+            } else if (id != null) {
+                if (!(object instanceof List)) {
+                    if (id.equals(DbService.getIdValue(object))) {
+                        // remove the whole key
+                        if (DbService.getDb(dbName).removeItem(key, sessionId)) {
+                            return Response.ok().build();
+                        } else {
+                            return Response.noContent().build();
+                        }
+                    }
+                } else{
+                    List valList = (List) object;
+                    ListIterator iter = valList.listIterator();
+                    boolean modified = false;
+                    while (iter.hasNext()){
+                        Object value = iter.next();
+                        if (id.equals(DbService.getIdValue(value))) {
+                            // remove this value item
+                            iter.remove();
+                            modified = true;
+                        }
+                    }
+                    if (modified && DbService.getDb(dbName).putItem(key, valList, sessionId)) {
+                        return Response.ok().build();
+                    } else {
+                        return Response.noContent().build();
+                    }
+                }
             }
+            return Response.noContent().build();
         } catch (IllegalArgumentException ex) {
             log.warning(ex.getMessage());
             return Response.serverError().entity(ex.getMessage()).build();
@@ -247,7 +282,7 @@ public class KeyValuePairsApi {
     @Path("/{key}")
     public Response updateObjects(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                   @PathParam("dbName") String dbName, @PathParam("key") String key,
-                                  @QueryParam("index") @DefaultValue("-1") int index, Object value) {
+                                  @QueryParam("index") Integer index, Object value) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.WRITE, dbName)) {
                 throw new IllegalArgumentException("Bad or missing API_KEY header");
@@ -258,11 +293,16 @@ public class KeyValuePairsApi {
 
             DbService db = DbService.getDb(dbName);
             Object object = db.getItem(key);
-            if (index < 0) {
+            if (object == null) {
                 return setObject(apiKey, sessionId, dbName, key, value);
-            } else if (!(object instanceof List)) {
-                throw new IllegalArgumentException("Unexpected index " + index + ". Value is not a collection");
-            } else {
+            }
+            Long valId = DbService.getIdValue(value);
+            if (index == null && valId == null) {
+                return setObject(apiKey, sessionId, dbName, key, value);
+            } else if (index != null){
+                if (!(object instanceof List)) {
+                    throw new IllegalArgumentException("Unexpected index " + index + ". Value is not a collection");
+                }
                 List valList = (List) object;
                 if (index >= valList.size()) {
                     throw new IllegalArgumentException("Bad index " + index);
@@ -273,7 +313,36 @@ public class KeyValuePairsApi {
                 } else {
                     return Response.noContent().build();
                 }
+            } else if (valId != null) {
+                if (!(object instanceof List)) {
+                    if (valId.equals(DbService.getIdValue(object))) {
+                        // set the whole key
+                        if (DbService.getDb(dbName).putItem(key, value, sessionId)) {
+                            return Response.ok().type(prepareMediaType(value)).entity(value).build();
+                        } else {
+                            return Response.noContent().build();
+                        }
+                    }
+                } else {
+                    List valList = (List) object;
+                    ListIterator iter = valList.listIterator();
+                    boolean modified = false;
+                    while (iter.hasNext()) {
+                        Object val = iter.next();
+                        if (valId.equals(DbService.getIdValue(val))) {
+                            // replace the value item
+                            iter.set(value);
+                            modified = true;
+                        }
+                    }
+                    if (modified && DbService.getDb(dbName).putItem(key, valList, sessionId)) {
+                        return Response.ok().type(prepareMediaType(value)).entity(value).build();
+                    } else {
+                        return Response.noContent().build();
+                    }
+                }
             }
+            return Response.noContent().build();
         } catch (IllegalArgumentException ex) {
             log.warning(ex.getMessage());
             return Response.serverError().entity(ex.getMessage()).build();
@@ -289,7 +358,7 @@ public class KeyValuePairsApi {
     @Consumes({MediaType.TEXT_PLAIN})
     public Response updateStrings(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                   @PathParam("dbName") String dbName, @PathParam("key") String key,
-                                  @QueryParam("index") @DefaultValue("-1") int index, String value) {
+                                  @QueryParam("index") Integer index, String value) {
         return updateObjects(apiKey, sessionId, dbName, key, index, value);
     }
 

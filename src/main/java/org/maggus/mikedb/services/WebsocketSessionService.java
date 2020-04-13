@@ -2,6 +2,9 @@ package org.maggus.mikedb.services;
 
 import lombok.Data;
 import lombok.extern.java.Log;
+import org.maggus.mikedb.data.DbEvent;
+import org.maggus.mikedb.data.ErrorEvent;
+import org.maggus.mikedb.data.SessionEvent;
 
 import javax.websocket.Session;
 import java.io.IOException;
@@ -45,8 +48,8 @@ public class WebsocketSessionService {
     public static synchronized void closeSession(Session session, String dbName){
         SessionHandler handler = getSession(session, dbName);
         if (handler != null) {
-            handler.onClose();
             getInstance().getDbSessions(dbName).remove(handler);
+            handler.onClose();
         }
     }
 
@@ -55,12 +58,25 @@ public class WebsocketSessionService {
         return dbSessions != null ? dbSessions.stream().filter(s -> s.getSession() == session).findAny().orElse(null) : null;
     }
 
+    private static void notifySessionsEvent(String dbName, SessionEvent.Type type, String sessionId) {
+        List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
+        if(dbSessions != null){
+            SessionEvent event = new SessionEvent();
+            event.setSessionId(sessionId);
+            event.setEvent(type.toString());
+            for(SessionHandler handler : dbSessions){
+                handler.sendObject(event);
+            }
+        }
+    }
+
     public static void notifySessionsDbEvent(String dbName, String key, Object value, String sessionId) {
         List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
         if(dbSessions != null){
             DbEvent event = new DbEvent();
             event.setSessionId(sessionId);
             event.setEvent(value != null ? DbEvent.Type.UPDATED.toString() : DbEvent.Type.DELETED.toString());
+            event.setDbName(dbName);
             event.setKey(key);
             event.setValue(value);
             for(SessionHandler handler : dbSessions){
@@ -72,7 +88,7 @@ public class WebsocketSessionService {
     public static void notifySessionsMessage(String dbName, String message, String sessionId) {
         List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
         if (dbSessions != null) {
-            String msg = "\"" + sessionId + "\" > " + message;
+            String msg = "> \"" + sessionId + "\" says: " + message;
             for (SessionHandler handler : dbSessions) {
                 handler.sendMessage(msg);
             }
@@ -104,12 +120,24 @@ public class WebsocketSessionService {
 
             DbEvent event = new DbEvent();
             event.setSessionId(getSessionId());
-            event.setEvent(DbEvent.Type.OPENED.toString());
-            sendObject(event);
+            event.setEvent(SessionEvent.Type.NEW.toString());
+            sendObject(event);  // send new session id to the client
+
+            WebsocketSessionService.notifySessionsEvent(getDbName(), SessionEvent.Type.OPENED, getSessionId());
         }
 
         public void onClose() {
             log.info("Session " + getSessionId() + " has closed");
+            WebsocketSessionService.notifySessionsEvent(getDbName(), SessionEvent.Type.CLOSED, getSessionId());
+        }
+
+        public void onError(Throwable ex) {
+            log.warning("Session " + getSessionId() + " had an error");
+            ErrorEvent err = new ErrorEvent();
+            err.setSessionId(getSessionId());
+            err.setException(ex.getClass().getSimpleName());
+            err.setMessage(ex.getMessage());
+            sendObject(err);
         }
 
         public void onMessage(String message) {
@@ -121,6 +149,8 @@ public class WebsocketSessionService {
         public void sendMessage(String message) {
             try {
                 session.getBasicRemote().sendText(message);
+            } catch (java.lang.IllegalStateException ex) {
+                log.warning("sendMessage can not send to session " + getSessionId() + "; " + ex.getMessage());
             } catch (IOException ex) {
                 log.log(Level.SEVERE, "sendMessage", ex);
             }
@@ -143,15 +173,5 @@ public class WebsocketSessionService {
             return Objects.hash(getSession());
         }
     }
-}
-
-@Data
-class DbEvent {
-    enum Type {OPENED, INSERTED, UPDATED, DELETED, DROPPED, CLOSED}
-
-    private String sessionId;
-    private String event;
-    private String key;
-    private Object value;
 }
 

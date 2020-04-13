@@ -34,13 +34,13 @@ export class WebsocketController {
     this.dataStream.onMessage(message => {
       this.onMessage(message.data)
     }).onOpen(() => {
-      this.messages.push("--- socket opened");
+      this.addMessageText("--- socket opened");
       this.send({API_KEY: this.API.HOST_API_KEY});  // got to send API_KEY first thing otherwise socket will be closed
     }).onClose(() => {
-      this.messages.push("--- socket closed");
+      this.addMessageText("--- socket closed");
       this.dataStream = null;
     }).onError(err => {
-      this.messages.push("--- error:" + err);
+      this.addMessageText("--- error: " + err);
     });
   }
 
@@ -56,21 +56,31 @@ export class WebsocketController {
       return;
     }
     this.dataStream.send(value);  // JSON.stringify({action: value})
+    this.txt = null;
   }
 
   onMessage(message) {
     let event = this.tryJson(message);
     if (!event || typeof event !== "object") {
-      this.messages.push(message);
+      this.addMessageText(message);
       return;
     }
 
-    if (event.event === "OPENED" && event.sessionId) {
+    if (event.event === "NEW" && event.sessionId) {
       this.hostStorageService.session = event.sessionId;
-      this.messages.push("--- new session id: \"" + event.sessionId + "\"");
+      this.addMessageText("--- your new session id: \"" + event.sessionId + "\"");
     } else if (this.hostStorageService.session !== event.sessionId) {
-      this.messages.push(message);
-      this.notify(event.key);
+      if (event.event === 'OPENED') {
+        this.addMessageText("-- \"" + event.sessionId + "\" opened session");
+      } else if (event.event === 'CLOSED') {
+        this.addMessageText("-- \"" + event.sessionId + "\" closed session");
+      } else {
+        this.addMessageText(message);
+        this.notify(event.key);
+      }
+    }
+    if (event.event === 'ERROR') {
+      this.addMessageText("--! ERROR: " + event.exception + " - " + event.message);
     }
   }
 
@@ -80,6 +90,15 @@ export class WebsocketController {
     } catch (e) {
       return str;
     }
+  }
+
+  addMessageText(message) {
+    this.messages.push(message);
+
+    window.setInterval(function() {
+      let elem = document.getElementById('messages');
+      elem.scrollTop = elem.scrollHeight;
+    }, 500);
   }
 
   notify(key) {

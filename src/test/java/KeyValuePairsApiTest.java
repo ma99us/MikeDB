@@ -1,4 +1,5 @@
 import lombok.Data;
+import org.glassfish.jersey.client.HttpUrlConnectorProvider;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Assert;
@@ -7,6 +8,7 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 import org.maggus.mikedb.KeyValuePairsApi;
 
+import javax.print.attribute.standard.Media;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
@@ -14,6 +16,7 @@ import javax.ws.rs.core.*;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 
 public class KeyValuePairsApiTest extends JerseyTest {
 
@@ -106,13 +109,15 @@ public class KeyValuePairsApiTest extends JerseyTest {
                 });
         System.out.println("item 1: " + value1);
         Assert.assertNotNull(value1);
+        Assert.assertTrue(value1.getId() != null && value1.getId() > 0);
 
         // get an existing item
         ObjectItem value2 = decorateRequest(target.path("testItem2").request(MediaType.APPLICATION_JSON))
                 .get(new GenericType<ObjectItem>() {
                 });
         System.out.println("item 2: " + value2);
-        Assert.assertNotNull(value1);
+        Assert.assertNotNull(value2);
+        Assert.assertTrue(value2.getId() != null && value2.getId() > 0);
 
         // try to get un-existing item
         ObjectItem value3 = decorateRequest(target.path("testItem3").request(MediaType.APPLICATION_JSON))
@@ -238,20 +243,20 @@ public class KeyValuePairsApiTest extends JerseyTest {
 
         //post new resource at /testDB/testString1
         String item1 = "Test String 1";
-        Response response = decorateRequest(target.path("testString1").request())
-                .put(Entity.entity(item1, MediaType.TEXT_PLAIN));
+        Response response = decorateRequest(target.path("testString11").request())
+                .post(Entity.entity(item1, MediaType.TEXT_PLAIN));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
         Assert.assertEquals(201, response.getStatus());
 
         // get items count
-        int num = decorateRequest(target.path("testString1").request())
+        int num = decorateRequest(target.path("testString11").request())
                 .head().getLength();
         System.out.println("item num: " + num);
         Assert.assertEquals(1, num);
 
         // get item
-        String value = decorateRequest(target.path("testString1").request())
+        String value = decorateRequest(target.path("testString11").request())
                 .get(new GenericType<String>() {
                 });
         System.out.println("item: " + value);
@@ -259,20 +264,20 @@ public class KeyValuePairsApiTest extends JerseyTest {
 
         //add another item to existing resource at /testDB/testString1
         String item2 = "Test String 2";
-        response = decorateRequest(target.path("testString1").request())
+        response = decorateRequest(target.path("testString11").request())
                 .post(Entity.entity(item2, MediaType.TEXT_PLAIN));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
         Assert.assertEquals(200, response.getStatus());
 
         // get new items count
-        num = decorateRequest(target.path("testString1").request())
+        num = decorateRequest(target.path("testString11").request())
                 .head().getLength();
         System.out.println("item num: " + num);
         Assert.assertEquals(2, num);
 
         // get item
-        List values = decorateRequest(target.path("testString1").request())
+        List values = decorateRequest(target.path("testString11").request())
                 .get(new GenericType<List>() {
                 });
         System.out.println("items: " + values);
@@ -285,35 +290,41 @@ public class KeyValuePairsApiTest extends JerseyTest {
         WebTarget target = target("testDB");
 
         //post new resource at /testDB/testString1
-        String item1 = "Test String 1";
-        Response response = decorateRequest(target.path("testString1").request())
-                .put(Entity.entity(new String[]{item1}, MediaType.APPLICATION_JSON));
+        ObjectItem item1 = new ObjectItem();
+        item1.setName("Test Object 1");
+        item1.setAge(123);
+        Response response = decorateRequest(target.path("testObject6").request())
+                .put(Entity.entity(new ArrayList<ObjectItem>() {{
+                    add(item1);
+                }}, MediaType.APPLICATION_JSON));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
         Assert.assertEquals(201, response.getStatus());
 
         // get items count
-        int value = decorateRequest(target.path("testString1").request())
+        int value = decorateRequest(target.path("testObject6").request())
                 .head().getLength();
         System.out.println("item num: " + value);
         Assert.assertEquals(1, value);
 
         //add another item to existing resource at /testDB/testString1
-        String item2 = "Test String 2";
-        response = decorateRequest(target.path("testString1").request())
-                .post(Entity.entity(item2, MediaType.TEXT_PLAIN));
+        ObjectItem item2 = new ObjectItem();
+        item2.setName("Test Object 2");
+        item2.setAge(456);
+        response = decorateRequest(target.path("testObject6").request())
+                .post(Entity.entity(item2, MediaType.APPLICATION_JSON));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
         Assert.assertEquals(200, response.getStatus());
 
         // get new items count
-        value = decorateRequest(target.path("testString1").request())
+        value = decorateRequest(target.path("testObject6").request())
                 .head().getLength();
         System.out.println("item num: " + value);
         Assert.assertEquals(2, value);
 
         // get all items
-        List values = decorateRequest(target.path("testString1").request())
+        List values = decorateRequest(target.path("testObject6").request())
                 .get(new GenericType<List>() {
                 });
         System.out.println("items: " + values);
@@ -321,20 +332,26 @@ public class KeyValuePairsApiTest extends JerseyTest {
         Assert.assertEquals(2, values.size());
 
         // add a bunch of items
-        response = decorateRequest(target.path("testString1").request())
-                .post(Entity.entity(new String[]{"Test String 3", "Test String 4"}, MediaType.APPLICATION_JSON));
+        ObjectItem item3 = new ObjectItem();
+        item3.setName("Test Object 3");
+        item3.setAge(789);
+        ObjectItem item4 = new ObjectItem();
+        item4.setName("Test Object 4");
+        item4.setAge(321);
+        response = decorateRequest(target.path("testObject6").request())
+                .post(Entity.entity(new ObjectItem[]{item3, item4}, MediaType.APPLICATION_JSON));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
         Assert.assertEquals(200, response.getStatus());
 
         // get new items count
-        value = decorateRequest(target.path("testString1").request())
+        value = decorateRequest(target.path("testObject6").request())
                 .head().getLength();
         System.out.println("item num: " + value);
         Assert.assertEquals(4, value);
 
-        // insert a bunch of items
-        response = decorateRequest(target.path("testString1")
+        // insert a bunch of primitive items
+        response = decorateRequest(target.path("testObject6")
                 .queryParam("index", 1).request())
                 .post(Entity.entity(new String[]{"Test String 3", "Test String 4"}, MediaType.APPLICATION_JSON));
         System.out.println(response.getHeaderString("Location"));
@@ -342,17 +359,21 @@ public class KeyValuePairsApiTest extends JerseyTest {
         Assert.assertEquals(200, response.getStatus());
 
         // get new items count
-        value = decorateRequest(target.path("testString1").request())
+        value = decorateRequest(target.path("testObject6").request())
                 .head().getLength();
         System.out.println("item num: " + value);
         Assert.assertEquals(6, value);
 
         // get all items
-        values = decorateRequest(target.path("testString1").request())
+        values = decorateRequest(target.path("testObject6").request())
                 .get(new GenericType<List>() {
                 });
         Assert.assertNotNull(values);
+        Assert.assertTrue(values.get(1) instanceof String);
         Assert.assertEquals("Test String 3", values.get(1));
+        Assert.assertTrue(values.get(3) instanceof Map);
+        Assert.assertEquals("Test Object 2", ((Map)values.get(3)).get("name"));
+        Assert.assertTrue((Long)((Map)values.get(3)).get("id") > 0);
     }
 
 
@@ -385,6 +406,57 @@ public class KeyValuePairsApiTest extends JerseyTest {
         response = decorateRequest(target.path("testString4").request())
                 .delete();
         Assert.assertEquals(204, response.getStatus());
+    }
+
+    @Test
+    public void deleteObjectsByKeyTest() throws Exception {
+        WebTarget target = target("testDB");
+        // add a few objects
+        ObjectItem item1 = new ObjectItem();
+        item1.setName("Test Object 1");
+        item1.setAge(123);
+        ObjectItem item2 = new ObjectItem();
+        item2.setName("Test Object 2");
+        item2.setAge(456);
+        Response response = decorateRequest(target.path("testObject4").request())
+                .put(Entity.entity(new ObjectItem[]{item1, item2}, MediaType.APPLICATION_JSON));
+        Assert.assertEquals(201, response.getStatus());
+
+        // get items count
+        int num = decorateRequest(target.path("testObject4").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(2, num);
+
+        List<ObjectItem> values = decorateRequest(target.path("testObject4").request())
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        Assert.assertEquals(2, values.size());
+        ObjectItem item3 = values.get(0);
+
+        // delete item by id
+        response = decorateRequest(target.path("testObject4")
+                .queryParam("id", item3.getId()).request())
+                .delete();
+        Assert.assertEquals(200, response.getStatus());
+
+        // get items count
+        num = decorateRequest(target.path("testObject4").request())
+                .head().getLength();
+        System.out.println("item num: " + num);
+        Assert.assertEquals(1, num);
+
+        // try to delete again
+        response = decorateRequest(target.path("testObject4")
+                .queryParam("id", item3.getId()).request())
+                .delete();
+        Assert.assertEquals(204, response.getStatus());
+
+        values = decorateRequest(target.path("testObject4").request())
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        Assert.assertEquals(1, values.size());
+        Assert.assertEquals("Test Object 2", values.get(0).getName());
     }
 
     @Test
@@ -555,20 +627,109 @@ public class KeyValuePairsApiTest extends JerseyTest {
         Assert.assertNotNull(value);
     }
 
-//    @Test
-//    public void patchItemsTest() throws Exception {
-//        WebTarget target = target("testDB");
-//
-//        //post new resource at /testDB/testString1
-//        Response response = decorateRequest(target.path("testString1").request())
-//                .put(null);
-//
-//        String value = decorateRequest(target.path("testString1").request())
-//                .get(new GenericType<String>() {
-//                });
-//        System.out.println("item: " + value);
-//        Assert.assertNotNull(value);
-//    }
+    @Test
+    public void patchItemTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        //set new resource at /testDB/testObject7
+        ObjectItem item1 = new ObjectItem();
+        item1.setName("Test Name 1");
+        item1.setAge(69);
+        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+        Response response = decorateRequest(target.path("testObject7").request())
+                .method("PATCH", Entity.entity(item1, MediaType.APPLICATION_JSON));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(201, response.getStatus());
+
+        // get it back
+        ObjectItem value = decorateRequest(target.path("testObject7").request(MediaType.APPLICATION_JSON))
+                .get(new GenericType<ObjectItem>() {
+                });
+        System.out.println("item: " + value);
+        Assert.assertNotNull(value);
+
+        // update the object
+        value.setName("Test Name 1 - updated");
+        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+        response = decorateRequest(target.path("testObject7").request())
+                .method("PATCH", Entity.entity(value, MediaType.APPLICATION_JSON));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get it back again
+        value = decorateRequest(target.path("testObject7").request(MediaType.APPLICATION_JSON))
+                .get(new GenericType<ObjectItem>() {
+                });
+        System.out.println("item: " + value);
+        Assert.assertNotNull(value);
+        Assert.assertEquals("Test Name 1 - updated", value.getName());
+    }
+
+    @Test
+    public void patchItemInListTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        //set new resource at /testDB/testObject7
+        ObjectItem item1 = new ObjectItem();
+        item1.setName("Test Name 1");
+        item1.setAge(69);
+        ObjectItem item2 = new ObjectItem();
+        item2.setName("Test Name 2");
+        item2.setAge(123);
+        ObjectItem item3 = new ObjectItem();
+        item3.setId(123456L);        // set custom id
+        item3.setName("Test Name 3");
+        item3.setAge(12345);
+        Response response = decorateRequest(target.path("testObject8").request())
+                .put(Entity.entity(new ObjectItem[]{item1, item2, item3}, MediaType.APPLICATION_JSON));
+        System.out.println(response.getHeaderString("Location"));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(201, response.getStatus());
+
+        // get it back
+        List<ObjectItem> values = decorateRequest(target.path("testObject8").request(MediaType.APPLICATION_JSON))
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        Assert.assertNotNull(values);
+        Assert.assertEquals(3, values.size());
+        ObjectItem value = values.get(1);
+
+        // update the object
+        value.setName("Test Name 1 - updated");
+        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+        response = decorateRequest(target.path("testObject8").request())
+                .method("PATCH", Entity.entity(value, MediaType.APPLICATION_JSON));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get it back again
+        values = decorateRequest(target.path("testObject8").request(MediaType.APPLICATION_JSON))
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        Assert.assertNotNull(value);
+        Assert.assertEquals(3, values.size());
+        System.out.println("item: " + values.get(1));
+        Assert.assertEquals("Test Name 1 - updated", values.get(1).getName());
+
+        // update custom id object
+        item3.setName("Test Name 3 - updated");
+        item3.setAge(88);
+        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+        response = decorateRequest(target.path("testObject8").request())
+                .method("PATCH", Entity.entity(item3, MediaType.APPLICATION_JSON));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get it all back
+        values = decorateRequest(target.path("testObject8").request(MediaType.APPLICATION_JSON))
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        Assert.assertNotNull(value);
+        Assert.assertEquals(3, values.size());
+        System.out.println("item: " + values.get(2));
+        Assert.assertEquals(88, values.get(2).getAge().intValue());
+    }
 
     private List<ObjectItem> makeObjectItemList(int num){
         List<ObjectItem> items  = new ArrayList<>(num);
@@ -584,6 +745,7 @@ public class KeyValuePairsApiTest extends JerseyTest {
 
 @Data
 class ObjectItem {
+    private Long id;
     private String name;
     private Integer age;
 }

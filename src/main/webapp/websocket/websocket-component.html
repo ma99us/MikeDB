@@ -4,13 +4,15 @@
         <div>
             <button ng-disabled="$ctrl.dataStream !== null" ng-click="$ctrl.connect()">Connect</button>
             <button ng-disabled="$ctrl.dataStream == null" ng-click="$ctrl.disconnect()">Disconnect</button>
+            -
+            <button ng-disabled="!$ctrl.messages" ng-click="$ctrl.messages = [];">Clear log</button>
         </div>
-        <div class="vertical-scroll">
+        <div id="messages" class="vertical-scroll">
             <p ng-repeat="m in $ctrl.messages track by $index">{{m}}
             </p>
         </div>
         <div>
-            <input type="text" placeholder="say something" ng-model="$ctrl.txt">
+            <input id="say" type="text" placeholder="say something" ng-model="$ctrl.txt">
             <button ng-disabled="$ctrl.dataStream == null" ng-click="$ctrl.send($ctrl.txt)">Send</button>
         </div>
     </div>

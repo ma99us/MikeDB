@@ -70,6 +70,9 @@ public class DbService {
         if (value == null) {
             throw new IllegalArgumentException("Value can not be null");
         }
+
+        generateObjectId(key, value);   // augment a Map Onject with the generated "id" field, if missing
+
         items.put(key, value);
         return store(key, value, sessionId);
     }
@@ -102,6 +105,23 @@ public class DbService {
 
     protected Map<String, Object> getItems() {
         return items;
+    }
+
+    private void generateObjectId(String key, Object value) {
+        if (value instanceof List) {
+            ((List) value).parallelStream().forEach(v -> generateObjectId(key, v)); //FIXME: can that generate duplicate ids?
+            return; // lists have no ids themselves
+        } else if (!(value instanceof Map)) {
+            return; // nothing to add to this Value
+        }
+        Object tryId = ((Map) value).get("id");
+        if(tryId != null && (!(tryId instanceof Long) || ((Long)tryId) > 0L)){
+            return; // Value already has some id
+        }
+
+        // generate some "unique" id for the new Value map
+        Long id = System.nanoTime() + dbName.hashCode() + key.hashCode();
+        ((Map) value).put("id", id);
     }
 
     protected boolean store(String key, Object value, String sessionId) {
@@ -137,5 +157,17 @@ public class DbService {
 
     protected void notifyWebsocketSessions(String key, Object value, String sessionId){
        WebsocketSessionService.notifySessionsDbEvent(dbName, key, value, sessionId);
+    }
+
+    public static Long getIdValue(Object value){
+        if (value instanceof Map) {
+            Object valId = ((Map) value).get("id");
+            if (valId instanceof Long) {
+                return (Long) valId;
+            } else if (valId instanceof Integer) {
+                return ((Integer) valId).longValue();
+            }
+        }
+        return null;
     }
 }

@@ -1,7 +1,7 @@
 package org.maggus.mikedb;
 
-import lombok.Data;
 import lombok.extern.java.Log;
+import org.maggus.mikedb.data.ErrorEvent;
 import org.maggus.mikedb.services.ApiKeysService;
 import org.maggus.mikedb.services.JsonUtils;
 import org.maggus.mikedb.services.WebsocketSessionService;
@@ -40,7 +40,10 @@ public class WebSocketResource {
                 // expect API_KEY message first
                 String apiKey = decodeApiKey(message);
                 if (apiKey == null || !ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.READ, dbName)) {
-                    throw new IllegalArgumentException("Session is not opened. Bad or missing API_KEY message");
+                    //throw new IllegalArgumentException("Session is not opened. Bad or missing API_KEY message");
+                    sendError(session, new IllegalArgumentException("Bad or missing API_KEY. Session terminated."));
+                    session.close();
+                    return;
                 }
                 handler = WebsocketSessionService.openSession(session, dbName, apiKey);
             } else {
@@ -48,23 +51,29 @@ public class WebSocketResource {
                 handler.onMessage(message);
             }
         } catch (IllegalArgumentException ex) {
-            log.warning(ex.getMessage());
-            sendError(ex, session);
+            log.warning("onMessage IllegalArgumentException" + ex.getMessage());
+            onError(session, ex);
         } catch (Exception ex) {
             log.log(Level.WARNING, "onMessage error", ex);
-            sendError(ex, session);
+            onError(session, ex);
         }
     }
 
     @OnError
-    public void onError(Throwable ex) {
+    public void onError(Session session, Throwable ex) {
         log.log(Level.SEVERE, "onError", ex);
+        String dbName = session.getRequestParameterMap().get("dbName").get(0);
+        WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getSession(session, dbName);
+        if (handler != null) {
+            handler.onError(ex);
+        } else {
+            sendError(session, ex);
+        }
     }
 
-    protected void sendError(Throwable ex, Session session) {
+    protected void sendError(Session session, Throwable ex) {
         try {
-            ErrorObject err = new ErrorObject();
-            err.setId(session.getId());
+            ErrorEvent err = new ErrorEvent();
             err.setException(ex.getClass().getSimpleName());
             err.setMessage(ex.getMessage());
             session.getBasicRemote().sendText(JsonUtils.objectToString(err));
@@ -81,13 +90,6 @@ public class WebSocketResource {
         Object value = ((Map) object).get("API_KEY");
         return (String)value;
     }
-}
-
-@Data
-class ErrorObject {
-    private String exception;
-    private String message;
-    private String id;
 }
 
 
