@@ -3,12 +3,9 @@ import org.glassfish.jersey.client.HttpUrlConnectorProvider;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Assert;
-import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
-import org.maggus.mikedb.KeyValuePairsApi;
+import org.maggus.mikedb.DbApiResource;
 
-import javax.print.attribute.standard.Media;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
@@ -18,11 +15,11 @@ import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
-public class KeyValuePairsApiTest extends JerseyTest {
+public class DbApiResourceTest extends JerseyTest {
 
     @Override
     protected Application configure() {
-        ResourceConfig config = new ResourceConfig(KeyValuePairsApi.class);
+        ResourceConfig config = new ResourceConfig(DbApiResource.class);
         //config.register(DbService.class);
         //config.packages("org.maggus.mikedb");
         return config;
@@ -220,7 +217,7 @@ public class KeyValuePairsApiTest extends JerseyTest {
                 .put(Entity.entity(new String[]{item2}, MediaType.APPLICATION_JSON));
         System.out.println(response.getHeaderString("Location"));
         System.out.println(response.getStatus());
-        Assert.assertEquals(201, response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
 
         // get new items count
         value = decorateRequest(target.path("testString1").request())
@@ -284,6 +281,51 @@ public class KeyValuePairsApiTest extends JerseyTest {
         Assert.assertNotNull(values);
         Assert.assertEquals(2, values.size());
     }
+
+    @Test
+    public void reorderItemsTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        //add a bunch of objects with ids
+        ObjectItem item1 = new ObjectItem();
+        item1.setName("Test Object 1");
+        item1.setAge(123);
+        item1.setId(12345L);
+        ObjectItem item2 = new ObjectItem();
+        item2.setName("Test Object 2");
+        item2.setAge(456);
+        item2.setId(23456L);
+        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+        Response response = decorateRequest(target.path("testObject8").request())
+                .method("PATCH", Entity.entity(new ObjectItem[]{item1, item2}, MediaType.APPLICATION_JSON));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get all items
+        List<ObjectItem> values = decorateRequest(target.path("testObject8").request())
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        System.out.println("items: " + values);
+        Assert.assertNotNull(values);
+        Assert.assertEquals(2, values.size());
+        Assert.assertEquals("Test Object 2", values.get(1).getName());
+
+        // re-order items
+        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+        response = decorateRequest(target.path("testObject8").queryParam("index", 0).request())
+                .method("PATCH", Entity.entity(item2, MediaType.APPLICATION_JSON));
+        System.out.println(response.getStatus());
+        Assert.assertEquals(200, response.getStatus());
+
+        // get new items count
+        values = decorateRequest(target.path("testObject8").request())
+                .get(new GenericType<List<ObjectItem>>() {
+                });
+        System.out.println("items: " + values);
+        Assert.assertEquals(2, values.size());
+        Assert.assertEquals("Test Object 2", values.get(0).getName());
+    }
+
 
     @Test
     public void postItemsListTest() throws Exception {
@@ -380,6 +422,10 @@ public class KeyValuePairsApiTest extends JerseyTest {
     @Test
     public void putDeleteItemsTest() throws Exception {
         WebTarget target = target("testDB");
+
+        // clean up
+        decorateRequest(target.path("testString4").request()).delete();
+
         // add single item
         Response response = decorateRequest(target.path("testString4").request())
                 .put(Entity.entity("Test String 4", MediaType.TEXT_PLAIN));
@@ -446,6 +492,18 @@ public class KeyValuePairsApiTest extends JerseyTest {
         System.out.println("item num: " + num);
         Assert.assertEquals(1, num);
 
+        // delete by object
+//        target.property(HttpUrlConnectorProvider.SET_METHOD_WORKAROUND, true);
+//        response = decorateRequest(target.path("testObject4").request())
+//                .method("DELETE", Entity.entity(values.get(1), MediaType.APPLICATION_JSON));
+//        Assert.assertEquals(200, response.getStatus());
+//
+//        // get items count
+//        num = decorateRequest(target.path("testObject4").request())
+//                .head().getLength();
+//        System.out.println("item num: " + num);
+//        Assert.assertEquals(0, num);
+
         // try to delete again
         response = decorateRequest(target.path("testObject4")
                 .queryParam("id", item3.getId()).request())
@@ -510,6 +568,9 @@ public class KeyValuePairsApiTest extends JerseyTest {
     @Test
     public void queryItemsTest() throws Exception {
         WebTarget target = target("testDB");
+
+        // clean up
+        decorateRequest(target.path("testString1").request()).delete();
 
         //post new resource at /testDB/testString1
         Response response = decorateRequest(target.path("testString1").request())

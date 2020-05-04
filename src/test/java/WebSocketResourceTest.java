@@ -6,7 +6,7 @@
 //import org.jboss.shrinkwrap.api.spec.WebArchive;
 //import org.junit.Test;
 //import org.junit.runner.RunWith;
-//import org.maggus.mikedb.WebSocketResource;
+//import org.maggus.mikedb.DbWebSocketResource;
 //
 //import javax.websocket.ClientEndpointConfig;
 //import javax.websocket.CloseReason;
@@ -40,7 +40,7 @@
 //    @Deployment(testable = false)
 //    public static final WebArchive app() {
 //        return ShrinkWrap.create(WebArchive.class, "example.war")
-//                .addClasses(WebSocketResource.class)
+//                .addClasses(DbWebSocketResource.class)
 //                //.addAsWebInfResource(new File("src/main/webapp/WEB-INF/web.xml"), "web.xml")
 //                ;
 //    }

@@ -1,11 +1,11 @@
-package org.maggus.mikedb;
+package org.maggus.mikedb.configurators;
 
 import javax.websocket.Extension;
 import javax.websocket.server.ServerEndpointConfig;
 import java.util.Collections;
 import java.util.List;
 
-public class WebSocketConfigurator extends ServerEndpointConfig.Configurator {
+public class SimpleWebSocketConfigurator extends ServerEndpointConfig.Configurator {
 
     @Override
     public List<Extension> getNegotiatedExtensions(List<Extension> installed,

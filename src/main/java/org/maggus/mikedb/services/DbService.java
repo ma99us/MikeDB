@@ -12,6 +12,7 @@ public class DbService {
     private static Map<String, DbService> dbs = new LinkedHashMap<>();
     public static final String CONFIG_DB_NAME = ".config";
     public static final String IN_MEMORY_DB_NAME_PREFIX = ":memory:";
+    public static final String PRIVATE_DB_NAME_PREFIX = ".";
 
     private final PersistenceService storage = new PersistenceService(this);
     private final Map<String, Object> items = new LinkedHashMap<>();
@@ -63,7 +64,7 @@ public class DbService {
         return items.get(key);
     }
 
-    public synchronized boolean putItem(String key, Object value, String sessionId) throws IllegalArgumentException {
+    public synchronized boolean putItem(String key, Object value, String sessionId, Object val) throws IllegalArgumentException {
         if (!PersistenceService.isValidName(key)) {
             throw new IllegalArgumentException("Illegal key \"" + key + "\"");
         }
@@ -74,22 +75,22 @@ public class DbService {
         generateObjectId(key, value);   // augment a Map Onject with the generated "id" field, if missing
 
         items.put(key, value);
-        return store(key, value, sessionId);
+        return store(key, value, sessionId, val);
     }
 
-    public synchronized boolean removeItem(String key, String sessionId) throws IllegalArgumentException {
+    public synchronized boolean removeItem(String key, String sessionId, Object val) throws IllegalArgumentException {
         if (!PersistenceService.isValidName(key)) {
             throw new IllegalArgumentException("Illegal key \"" + key + "\"");
         }
         Object prevVal = items.remove(key);
-        return store(key, null, sessionId) && prevVal != null;
+        return store(key, null, sessionId, val) && prevVal != null;
     }
 
     protected synchronized boolean removeAllItems(String sessionId) {
         Set<String> keys = new LinkedHashSet<>(items.keySet());
         boolean allRemoved = true;
         for (String key : keys) {
-            allRemoved &= removeItem(key, sessionId);
+            allRemoved &= removeItem(key, sessionId, null);
         }
         log.warning("removeAllItems; allRemoved=" + allRemoved);
         if (allRemoved && !inMemory) {
@@ -124,8 +125,8 @@ public class DbService {
         ((Map) value).put("id", id);
     }
 
-    protected boolean store(String key, Object value, String sessionId) {
-        notifyWebsocketSessions(key, value, sessionId);
+    protected boolean store(String key, Object value, String sessionId, Object val) {
+        notifyWebsocketSessions(key, value, sessionId, val);
 
         if(inMemory){
             return true;
@@ -155,8 +156,28 @@ public class DbService {
         }
     }
 
-    protected void notifyWebsocketSessions(String key, Object value, String sessionId){
-       WebsocketSessionService.notifySessionsDbEvent(dbName, key, value, sessionId);
+    protected void notifyWebsocketSessions(String key, Object value, String sessionId, Object val){
+        if (isPrivateDb() || isPrivateKey(key)) {
+            return; // do ont send notifications
+        }
+       WebsocketSessionService.notifySessionsDbEvent(dbName, key, value, sessionId, val);
+    }
+
+    /**
+     * Private DB has all keys private, so no DB actions websocket notifications will be sent
+     * @return
+     */
+    public boolean isPrivateDb(){
+        return dbName.startsWith(PRIVATE_DB_NAME_PREFIX);
+    }
+
+    /**
+     * Actions on private keys do not send websocket notifications
+     * @param key
+     * @return
+     */
+    public boolean isPrivateKey(String key){
+        return key.startsWith(PRIVATE_DB_NAME_PREFIX);
     }
 
     public static Long getIdValue(Object value){

@@ -12,7 +12,7 @@ public class App extends Application {
     @Override
     public Set<Class<?>> getClasses() {
         HashSet h = new HashSet<Class<?>>();
-        h.add(KeyValuePairsApi.class);
+        h.add(DbApiResource.class);
         return h;
     }
 }

@@ -13,10 +13,10 @@ import java.util.Map;
 import java.util.logging.Level;
 
 //@ServerEndpoint(value = "/subscribe/{dbName}",
-//        configurator = WebSocketConfigurator.class)
+//        configurator = SimpleWebSocketConfigurator.class)
 @ServerEndpoint("/subscribe/{dbName}")
 @Log
-public class WebSocketResource {
+public class DbWebSocketResource {
 
     @OnOpen
     public void onOpen(Session session) {
@@ -33,9 +33,16 @@ public class WebSocketResource {
     @OnMessage
     public void onMessage(String message, Session session) {
         try {
+            if ("PING".equalsIgnoreCase(message)) {
+                // keep-alive heartbeat
+                synchronized (session) {
+                    session.getBasicRemote().sendText("PONG");
+                }
+                return;
+            }
             log.info(session.getId() + " sent message: " + message);
             String dbName = session.getRequestParameterMap().get("dbName").get(0);
-            WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getSession(session, dbName);
+            WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getInstance().getSession(session, dbName);
             if(handler == null) {
                 // expect API_KEY message first
                 String apiKey = decodeApiKey(message);
@@ -63,7 +70,7 @@ public class WebSocketResource {
     public void onError(Session session, Throwable ex) {
         log.log(Level.SEVERE, "onError", ex);
         String dbName = session.getRequestParameterMap().get("dbName").get(0);
-        WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getSession(session, dbName);
+        WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getInstance().getSession(session, dbName);
         if (handler != null) {
             handler.onError(ex);
         } else {
@@ -76,7 +83,9 @@ public class WebSocketResource {
             ErrorEvent err = new ErrorEvent();
             err.setException(ex.getClass().getSimpleName());
             err.setMessage(ex.getMessage());
-            session.getBasicRemote().sendText(JsonUtils.objectToString(err));
+            synchronized (session) {
+                session.getBasicRemote().sendText(JsonUtils.objectToString(err));
+            }
         } catch (IOException exx) {
             log.log(Level.SEVERE, "sendError", exx);
         }
@@ -91,6 +100,3 @@ public class WebSocketResource {
         return (String)value;
     }
 }
-
-
-

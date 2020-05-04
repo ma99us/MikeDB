@@ -48,7 +48,7 @@ public class ApiKeysService {
         db.put("dbName", "testDB");
         dbs.add(db);
         apiKey.put("dbs", dbs);
-        config.putItem(TEST_DB_API_KEY, apiKey, null);
+        config.putItem(TEST_DB_API_KEY, apiKey, null, apiKey);
 
         // TEST_WC_DB_API_KEY
         apiKey = new LinkedHashMap<String, Object>();
@@ -59,7 +59,7 @@ public class ApiKeysService {
         db.put("dbName", ":memory:.test*");
         dbs.add(db);
         apiKey.put("dbs", dbs);
-        config.putItem(TEST_WC_DB_API_KEY, apiKey, null);
+        config.putItem(TEST_WC_DB_API_KEY, apiKey, null, apiKey);
     }
 
     protected boolean _isValidApiKey(String apiKey, Access access, String dbName) {
