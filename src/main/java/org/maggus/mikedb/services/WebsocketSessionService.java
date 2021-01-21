@@ -85,6 +85,14 @@ public class WebsocketSessionService {
         }
     }
 
+    public static boolean hasOpenSessions(String dbName) {
+        List<SessionHandler> dbSessions = getInstance().getDbSessions(dbName);
+        if (dbSessions == null || dbSessions.isEmpty()) {
+            return false;
+        }
+        return dbSessions.stream().anyMatch(s -> s.isOpen());
+    }
+
     public SessionHandler getSession(Session session, String dbName) {
         List<SessionHandler> dbSessions = getDbSessions(dbName);
         return dbSessions != null ? dbSessions.stream().filter(s -> s.getSession() == session).findAny().orElse(null) : null;
@@ -92,7 +100,7 @@ public class WebsocketSessionService {
 
     protected synchronized List<SessionHandler> getDbSessions(String dbName) {
         List<SessionHandler> dbSessions = sessions.get(dbName);
-        return dbSessions != null ? new ArrayList<SessionHandler>(dbSessions): null; // return a copy for non-synchronized operations
+        return dbSessions != null ? new ArrayList<SessionHandler>(dbSessions) : null; // return a copy for non-synchronized operations
     }
 
     protected synchronized boolean addSession(SessionHandler handler, String dbName) {
@@ -107,7 +115,7 @@ public class WebsocketSessionService {
         return dbSessions.add(handler);
     }
 
-    protected synchronized boolean removeSession(SessionHandler handler, String dbName){
+    protected synchronized boolean removeSession(SessionHandler handler, String dbName) {
         List<SessionHandler> dbSessions = sessions.get(dbName);
         if (dbSessions == null) {
             return false;
@@ -140,6 +148,10 @@ public class WebsocketSessionService {
             this.apiKey = apiKey;
         }
 
+        public boolean isOpen() {
+            return session.isOpen();
+        }
+
         public void onOpen() {
             //sendMessage("> Session "+session.getId()+" has opened database \"" + dbName + "\"");
             setSessionId(dbName + "-" + session.getId());   // TODO: add some unique number here?
@@ -169,7 +181,7 @@ public class WebsocketSessionService {
         }
 
         public void onMessage(String message) {
-            log.info("Message from " + getSessionId() + ": " + message);
+            //log.info("Message from " + getSessionId() + ": " + message);
             WebsocketSessionService.notifySessionsMessage(getDbName(), message, getSessionId());
         }
 

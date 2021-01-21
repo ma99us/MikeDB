@@ -1,9 +1,5 @@
 package org.maggus.mikedb.services;
 
-import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import lombok.extern.java.Log;
 
 import java.io.File;
@@ -14,7 +10,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Properties;
-import java.util.logging.Level;
 
 @Log
 public class PersistenceService {
@@ -49,13 +44,14 @@ public class PersistenceService {
 
     /**
      * Load database content from the file system
+     *
      * @throws IOException
      */
     public void load() throws IOException {
         FileInputStream fi = null;
         try {
             File file = getItemsFile();
-            if(!file.isFile()){
+            if (!file.isFile()) {
                 log.warning("No such database file: " + file.getAbsolutePath());
                 return;
             }
@@ -70,7 +66,7 @@ public class PersistenceService {
         final Map<String, Object> items = db.getItems();
         for (String key : props.stringPropertyNames()) {
             String property = props.getProperty(key);
-            if(property.startsWith("@v.") && property.endsWith(".db")){
+            if (property.startsWith("@v.") && property.endsWith(".db")) {
                 // read from external file
                 File file = getValuesFile(property.substring(1));
                 if (file.isFile()) {
@@ -84,12 +80,13 @@ public class PersistenceService {
 
     /**
      * Process the latest database change. Store what's updated to the file system.
+     *
      * @param key
      * @param value
      * @throws IOException
      */
     public void store(String key, Object value) throws IOException {
-        if(value == null){
+        if (value == null) {
             //delete old value files if any
             String property = props.getProperty(key);
             if (property != null && property.startsWith("@v.") && property.endsWith(".db")) {
@@ -102,11 +99,11 @@ public class PersistenceService {
             props.remove(key);
         } else {
             String json = JsonUtils.objectToString(value);
-            if(json.length() > 1024){
+            if (json.length() > 1024) {
                 // store to external file
                 String val = "v." + key + ".db";
                 File file = getValuesFile(val);
-                if(JsonUtils.objectToFile(value, file)){
+                if (JsonUtils.objectToFile(value, file)) {
                     props.put(key, "@" + val);
                 }
             } else {
@@ -139,7 +136,7 @@ public class PersistenceService {
         deleteDir(dbDir);
     }
 
-    private void deleteDir(File dir){
+    private void deleteDir(File dir) {
         File[] files = dir.listFiles();
         if (files != null) {
             for (File file : files) {

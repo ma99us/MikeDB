@@ -4,7 +4,9 @@ import lombok.extern.java.Log;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 @Log
 public class DbService {
@@ -18,6 +20,9 @@ public class DbService {
     private final Map<String, Object> items = new LinkedHashMap<>();
     public final String dbName;
     public final boolean inMemory;
+
+    private Date lastUpdated;
+
 
     private DbService(String dbName) {
         this.dbName = dbName;
@@ -110,13 +115,13 @@ public class DbService {
 
     private void generateObjectId(String key, Object value) {
         if (value instanceof List) {
-            ((List) value).parallelStream().forEach(v -> generateObjectId(key, v)); //FIXME: can that generate duplicate ids?
+            ((List) value).stream().forEach(v -> generateObjectId(key, v)); //FIXME: can that generate duplicate ids?
             return; // lists have no ids themselves
         } else if (!(value instanceof Map)) {
             return; // nothing to add to this Value
         }
         Object tryId = ((Map) value).get("id");
-        if(tryId != null && (!(tryId instanceof Long) || ((Long)tryId) > 0L)){
+        if (tryId != null && (!(tryId instanceof Long) || ((Long) tryId) > 0L)) {
             return; // Value already has some id
         }
 
@@ -127,8 +132,9 @@ public class DbService {
 
     protected boolean store(String key, Object value, String sessionId, Object val) {
         notifyWebsocketSessions(key, value, sessionId, val);
+        lastUpdated = new Date();
 
-        if(inMemory){
+        if (inMemory) {
             return true;
         }
         try {
@@ -145,42 +151,67 @@ public class DbService {
     }
 
     protected void load() {
-        if(inMemory){
+        if (inMemory) {
             return;
         }
         try {
             storage.load();
-            log.info("Database \"" +dbName + "\" loaded with " + getItems().size() + " records");
+            log.info("Database \"" + dbName + "\" loaded with " + getItems().size() + " records");
         } catch (IOException ex) {
             log.log(Level.SEVERE, dbName + " load failed", ex);
         }
     }
 
-    protected void notifyWebsocketSessions(String key, Object value, String sessionId, Object val){
+    /**
+     * Checks if the DB did not have any updates for at least an hour
+     * @return true if DB had no updates recently
+     */
+    protected boolean isAbandoned() {
+        if (lastUpdated == null) {
+            return false;
+        }
+        long millis = Math.abs(new Date().getTime() - lastUpdated.getTime());
+        long hours = TimeUnit.HOURS.convert(millis, TimeUnit.MILLISECONDS);
+        return hours >= 1;
+    }
+
+    protected boolean cleanup() {
+        if (this.inMemory && !WebsocketSessionService.hasOpenSessions(this.dbName) && isAbandoned()) {
+            // If a memory DB has no open sessions (no one is listening on it), and was not updated for an hour,
+            // then just drop the whole DB!
+            log.warning("Cleaning up DB \"" + dbName + "\"");
+            return DbService.dropDb(this.dbName, "cleanup");
+        }
+        return false;
+    }
+
+    protected void notifyWebsocketSessions(String key, Object value, String sessionId, Object val) {
         if (isPrivateDb() || isPrivateKey(key)) {
             return; // do ont send notifications
         }
-       WebsocketSessionService.notifySessionsDbEvent(dbName, key, value, sessionId, val);
+        WebsocketSessionService.notifySessionsDbEvent(dbName, key, value, sessionId, val);
     }
 
     /**
      * Private DB has all keys private, so no DB actions websocket notifications will be sent
+     *
      * @return
      */
-    public boolean isPrivateDb(){
+    public boolean isPrivateDb() {
         return dbName.startsWith(PRIVATE_DB_NAME_PREFIX);
     }
 
     /**
      * Actions on private keys do not send websocket notifications
+     *
      * @param key
      * @return
      */
-    public boolean isPrivateKey(String key){
+    public boolean isPrivateKey(String key) {
         return key.startsWith(PRIVATE_DB_NAME_PREFIX);
     }
 
-    public static Long getIdValue(Object value){
+    public static Long getIdValue(Object value) {
         if (value instanceof Map) {
             Object valId = ((Map) value).get("id");
             if (valId instanceof Long) {
@@ -190,5 +221,22 @@ public class DbService {
             }
         }
         return null;
+    }
+
+    protected static List<String> getOpenedDbNames(boolean inMemoryOnly) {
+        return dbs.entrySet()
+                .stream()
+                .filter(map -> (map.getValue().inMemory && inMemoryOnly) || !inMemoryOnly)
+                .map(map -> map.getKey())
+                .collect(Collectors.toList());
+    }
+
+    protected static boolean cleanupOpenedDb(String dbName) {
+        DbService dbService = dbs.get(dbName);
+        if (dbService == null) {
+            return false;
+        }
+
+        return dbService.cleanup();
     }
 }

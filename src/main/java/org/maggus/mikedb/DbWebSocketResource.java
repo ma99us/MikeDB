@@ -40,7 +40,7 @@ public class DbWebSocketResource {
                 }
                 return;
             }
-            log.info(session.getId() + " sent message: " + message);
+            //log.info(session.getId() + " sent message: " + message);
             String dbName = session.getRequestParameterMap().get("dbName").get(0);
             WebsocketSessionService.SessionHandler handler = WebsocketSessionService.getInstance().getSession(session, dbName);
             if(handler == null) {

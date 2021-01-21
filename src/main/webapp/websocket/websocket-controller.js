@@ -69,7 +69,8 @@ export class WebsocketController {
     if (event.event === "NEW" && event.sessionId) {
       this.hostStorageService.session = event.sessionId;
       this.addMessageText("--- your new session id: \"" + event.sessionId + "\"");
-    } else if (this.hostStorageService.session !== event.sessionId) {
+    //} else if (this.hostStorageService.session !== event.sessionId) {
+    } else {
       if (event.event === 'OPENED') {
         this.addMessageText("-- \"" + event.sessionId + "\" opened session");
       } else if (event.event === 'CLOSED') {
