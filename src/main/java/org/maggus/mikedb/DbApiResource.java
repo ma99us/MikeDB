@@ -229,7 +229,7 @@ public class DbApiResource {
                         // set the whole key
                         return setObject(apiKey, sessionId, dbName, key, value);
                     } else{
-                        // add new item to list values
+                        // add new item to the list of values
                         return addObjects(apiKey, sessionId, dbName, key, index, value);
                     }
                 } else {

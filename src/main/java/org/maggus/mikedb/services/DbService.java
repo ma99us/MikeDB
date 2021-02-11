@@ -120,8 +120,9 @@ public class DbService {
         } else if (!(value instanceof Map)) {
             return; // nothing to add to this Value
         }
-        Object tryId = ((Map) value).get("id");
-        if (tryId != null && (!(tryId instanceof Long) || ((Long) tryId) > 0L)) {
+
+        Long tryId = getIdValue(value);
+        if (tryId != null) {
             return; // Value already has some id
         }
 
@@ -218,6 +219,15 @@ public class DbService {
                 return (Long) valId;
             } else if (valId instanceof Integer) {
                 return ((Integer) valId).longValue();
+            } else if (valId instanceof String) {
+                try {
+                    return Long.parseLong((String) valId);
+                } catch (NumberFormatException ex) {
+                    log.warning("Unexpected 'id' value: " + valId);
+                    return null;
+                }
+            } else if(valId != null){
+                log.warning("Unexpected 'id' type: " + valId);
             }
         }
         return null;
