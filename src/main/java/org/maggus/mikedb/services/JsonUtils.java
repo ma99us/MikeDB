@@ -8,10 +8,14 @@ import lombok.extern.java.Log;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.*;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
 
 @Log
 public class JsonUtils {
+
+    public final static long MAX_SAFE_INTEGER = 9007199254740991L;   // javascript Number.MAX_SAFE_INTEGER = 2^53 - 1
 
     private static ObjectMapper mapper = null;
 
@@ -78,5 +82,24 @@ public class JsonUtils {
             log.log(Level.WARNING, "Error reading " + clazz + " from string " + json + " - " + ex.getMessage());
             return null;
         }
+    }
+
+    public static Object filterObjectFields(Object value, String[] fieldNames) {
+        if (!(value instanceof Map) || fieldNames == null) {
+            return value;
+        }
+        List<String> fieldsList = Arrays.stream(fieldNames).map((s) -> s.toLowerCase()).collect(Collectors.toList());
+        LinkedHashMap<String, Object> filteredMap = new LinkedHashMap<>();
+        Iterator iterator = ((Map) value).entrySet().iterator();
+        while (iterator.hasNext()) {
+            Map.Entry entry = (Map.Entry) iterator.next();
+            String key = (String) entry.getKey();
+            Object val = entry.getValue();
+            if ("id".equalsIgnoreCase(key) || fieldsList.contains(key.toLowerCase())) {
+                filteredMap.put(key, val);
+            }
+        }
+        return filteredMap;
+
     }
 }

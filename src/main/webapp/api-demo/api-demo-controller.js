@@ -21,8 +21,8 @@ export class ApiDemoController {
 
   }
 
-  getPlayers() {
-    this.hostStorageService.get(this.key).then(data => {
+  getPlayers(fields) {
+    this.hostStorageService.get(this.key, 0, -1, fields).then(data => {
       this.error = null;
       this.players = (!Array.isArray(data) && data !== null) ? [data] : data; // players should always be an array or null
       this.countPlayers();
@@ -120,8 +120,8 @@ export class ApiDemoController {
     })
   }
 
-  deletePlayer(index) {
-    this.hostStorageService.delete(this.key, index).then(data => {
+  deletePlayer(player) {
+    this.hostStorageService.delete(this.key, player).then(data => {
       this.error = null;
       this.getPlayers();
     }).catch(err => {

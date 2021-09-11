@@ -12,6 +12,7 @@ public class ApiKeysService {
 
     public enum Access {READ, WRITE}
 
+    private final String API_KEYS_KEY = "api-keys";
     private final String TEST_DB_API_KEY = "5up3r53cr3tK3y";
     private final String TEST_WC_DB_API_KEY = "T3st53cr3tK3y";
 
@@ -19,63 +20,75 @@ public class ApiKeysService {
 
     private static ApiKeysService instance;
 
-    private ApiKeysService(){
+    private ApiKeysService() {
         // singleton
+        log.info("Initializing Mike-DB...");
     }
 
     protected DbService getConfig() {
         if (config == null) {
             config = DbService.getConfig();
-            if (config.getItem(TEST_DB_API_KEY) == null || config.getItem(TEST_WC_DB_API_KEY) == null) {
-                populateDefaultKeys();
-            }
-            log.info("ApiKeysService found " + config.getItems().size() + " API keys");
+            populateDefaultKeys();
         }
         return config;
     }
 
     private void populateDefaultKeys() {
-        // TEST_DB_API_KEY
-        Map<String, Object> apiKey = new LinkedHashMap<String, Object>();
-        apiKey.put("key", TEST_DB_API_KEY);
-        ArrayList<Map<String, Object>> dbs = new ArrayList<>();
-        Map<String, Object> db = new LinkedHashMap<String, Object>();
-        db.put("access", Access.WRITE.toString());
-        db.put("dbName", ":memory:testDB");
-        dbs.add(db);
-        db = new LinkedHashMap<String, Object>();
-        db.put("access", Access.WRITE.toString());
-        db.put("dbName", "testDB");
-        dbs.add(db);
-        apiKey.put("dbs", dbs);
-        config.putItem(TEST_DB_API_KEY, apiKey, null, apiKey);
+        Map keysValues = (Map) config.getItem(API_KEYS_KEY);
+        if (keysValues == null) {
+            keysValues = new LinkedHashMap<String, Object>();
+        }
 
-        // TEST_WC_DB_API_KEY
-        apiKey = new LinkedHashMap<String, Object>();
-        apiKey.put("key", TEST_WC_DB_API_KEY);
-        dbs = new ArrayList<>();
-        db = new LinkedHashMap<String, Object>();
-        db.put("access", Access.READ.toString());
-        db.put("dbName", ":memory:.test*");
-        dbs.add(db);
-        apiKey.put("dbs", dbs);
-        config.putItem(TEST_WC_DB_API_KEY, apiKey, null, apiKey);
+        if (keysValues.get(TEST_DB_API_KEY) == null || keysValues.get(TEST_WC_DB_API_KEY) == null) {
+            log.warning("Default 'testDB' keys are missing. Adding them.");
+
+            // TEST_DB_API_KEY
+            Map<String, Object> apiKey = new LinkedHashMap<String, Object>();
+            ArrayList<Map<String, Object>> dbs = new ArrayList<>();
+            Map<String, Object> db = new LinkedHashMap<String, Object>();
+            db.put("access", Access.WRITE.toString());
+            db.put("dbName", ":memory:testDB");
+            dbs.add(db);
+            db = new LinkedHashMap<String, Object>();
+            db.put("access", Access.WRITE.toString());
+            db.put("dbName", "testDB");
+            dbs.add(db);
+            apiKey.put("dbs", dbs);
+            keysValues.put(TEST_DB_API_KEY, apiKey);
+
+            // TEST_WC_DB_API_KEY
+            apiKey = new LinkedHashMap<String, Object>();
+            dbs = new ArrayList<>();
+            db = new LinkedHashMap<String, Object>();
+            db.put("access", Access.READ.toString());
+            db.put("dbName", ":memory:.test*");
+            dbs.add(db);
+            apiKey.put("dbs", dbs);
+            keysValues.put(TEST_WC_DB_API_KEY, apiKey);
+
+            config.putItem(API_KEYS_KEY, keysValues, null, keysValues);
+        }
+
+        log.info("ApiKeysService loaded " + keysValues.size() + " API keys records");
     }
 
     protected boolean _isValidApiKey(String apiKey, Access access, String dbName) {
         if (apiKey == null || apiKey.isEmpty()) {
             return false;
         }
-        Object val = getConfig().getItem(apiKey);
-        if (val == null) {
+        Map apiKeys = (Map) getConfig().getItem(API_KEYS_KEY);
+        if (apiKeys == null) {
             return false;
         }
-        Map<String, Object> key = (Map<String, Object>) val;
-        Object dbs = key.get("dbs");
+        Map<String, Object> key = (Map<String, Object>) apiKeys.get(apiKey);
+        if (key == null) {
+            return false;
+        }
+        List<Map<String, Object>> dbs = (List<Map<String, Object>>) key.get("dbs");
         if (dbs == null) {
             return false;
         }
-        for (Map<String, Object> db : (List<Map<String, Object>>) dbs) {
+        for (Map<String, Object> db : dbs) {
             String keyDbName = (String) db.get("dbName");
             boolean nameMatches = false;
             String keyAccess = (String) db.get("access");
@@ -96,7 +109,11 @@ public class ApiKeysService {
         if (instance == null) {
             instance = new ApiKeysService();
         }
-        return instance._isValidApiKey(apiKey, access, dbName);
+        boolean isValid = instance._isValidApiKey(apiKey, access, dbName);
+        if (!isValid) {
+            log.warning("Invalid key \"" + apiKey + "\" for DB \"" + dbName + "\", access=" + access);
+        }
+        return isValid;
     }
 }
 

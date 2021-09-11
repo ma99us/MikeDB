@@ -107,10 +107,10 @@ export class HostStorageService {
    * @param maxResults (optional) number of elements from resulting collection to retrieve
    * @returns {*} 200 if record retrieved or status code 204 when no such record
    */
-  get(key, firstResult = 0, maxResults = -1) {
+  get(key, firstResult = 0, maxResults = -1, fields = null) {
     const deferred = this.$q.defer();
     this.$http.get(this.API.HOST_STORAGE_URL + key,
-      {params: {firstResult: firstResult, maxResults: maxResults}}).then(response => {
+      {params: {firstResult: firstResult, maxResults: maxResults, fields: fields}}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);
@@ -135,12 +135,12 @@ export class HostStorageService {
   }
 
   /**
-   * Delete a record with given Key, or a single value from record's value list if 'index' provided
+   * Delete a record with given Key, or if a value with 'id' is provided, then delete a single value from record's value list
    */
-  delete(key, index = null) {
+  delete(key, value = {}) {
     const deferred = this.$q.defer();
     this.$http.delete(this.API.HOST_STORAGE_URL + key,
-      {params: {index: index}}).then(response => {
+      {headers: this.prepareHeaders(value), data: value}).then(response => {
       this.validateResponse(deferred, response);
     }, err => {
       this.validateResponse(deferred, err);

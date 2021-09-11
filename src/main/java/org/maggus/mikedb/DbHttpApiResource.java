@@ -8,16 +8,14 @@ import org.maggus.mikedb.services.DbService;
 import javax.ws.rs.*;
 import javax.ws.rs.core.*;
 import java.net.URI;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ListIterator;
+import java.util.*;
 import java.util.logging.Level;
 
 @Path("/{dbName}")
 @Produces({MediaType.APPLICATION_JSON, MediaType.TEXT_PLAIN})
 @Consumes({MediaType.APPLICATION_JSON})
 @Log
-public class DbApiResource {
+public class DbHttpApiResource {
 
     @Context
     private UriInfo uriInfo;
@@ -53,14 +51,28 @@ public class DbApiResource {
     public Response getObject(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName, @PathParam("key") String key,
                               @QueryParam("firstResult") @DefaultValue("0") int firstResult,
-                              @QueryParam("maxResults") @DefaultValue("-1") int maxResults) {
+                              @QueryParam("maxResults") @DefaultValue("-1") int maxResults,
+                              @QueryParam("fields") String fieldNames,
+                              @QueryParam("id") Long id) {
         try {
             if (!ApiKeysService.isValidApiKey(apiKey, ApiKeysService.Access.READ, dbName)) {
                 throw new IllegalArgumentException("Bad or missing API_KEY header");
             }
-            Object value = DbService.getDb(dbName).getItem(key);
+            String[] fields = null;
+            if (fieldNames != null && !fieldNames.isEmpty()) {
+                fields = fieldNames.split(",");
+            } else if (fieldNames != null) {
+                fields = new String[]{"id"};
+            }
+            Object value = DbService.getDb(dbName).getItem(key, fields);
             if (value != null) {
-                if (value instanceof List && (firstResult > 0 || maxResults >= 0)) {
+                if (value instanceof List && id != null) {
+                    // get a single item from a list
+                    value = ((List) value).stream().filter(val -> id.equals(DbService.getIdValue(val))).findAny().orElse(null);
+                    if (value == null) {
+                        return Response.noContent().build();
+                    }
+                } else if (value instanceof List && (firstResult > 0 || maxResults >= 0)) {
                     List list = (List) value;
                     value = list.subList(firstResult, maxResults >= 0 ? firstResult + maxResults : list.size());
                 }
@@ -76,6 +88,16 @@ public class DbApiResource {
             log.log(Level.WARNING, "getItem error", ex);
             return Response.serverError().entity(ex.getMessage()).build();
         }
+    }
+
+    @GET
+    @Path("/{key}/{id}")
+    public Response getObjectById(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
+                              @PathParam("dbName") String dbName, @PathParam("key") String key, @PathParam("id") Long id,
+                              @QueryParam("firstResult") @DefaultValue("0") int firstResult,
+                              @QueryParam("maxResults") @DefaultValue("-1") int maxResults,
+                              @QueryParam("fields") String fieldNames) {
+        return getObject(apiKey, sessionId, dbName, key, firstResult, maxResults, fieldNames, id);
     }
 
     @PUT
@@ -95,7 +117,7 @@ public class DbApiResource {
 
             if (db.putItem(key, value, sessionId, value)) {
                 if (object == null) {
-                    //final URI processIdUri = UriBuilder.fromResource(DbApiResource.class).path(key).build(dbName);
+                    //final URI processIdUri = UriBuilder.fromResource(DbHttpApiResource.class).path(key).build(dbName);
                     return Response.created(new URI("/" + dbName + "/" + key)).type(prepareMediaType(value)).entity(value).build();
                 } else {
                     return Response.ok().type(prepareMediaType(value)).entity(value).build();
@@ -161,7 +183,7 @@ public class DbApiResource {
 
             if (DbService.getDb(dbName).putItem(key, valList, sessionId, value)) {
                 if(object == null){
-                    //final URI processIdUri = UriBuilder.fromResource(DbApiResource.class).path(key).build(dbName);
+                    //final URI processIdUri = UriBuilder.fromResource(DbHttpApiResource.class).path(key).build(dbName);
                     return Response.created(new URI("/"+dbName+"/"+key)).type(prepareMediaType(value)).entity(value).build();
                 } else {
                     return Response.ok().type(prepareMediaType(value)).entity(value).build();
@@ -294,6 +316,8 @@ public class DbApiResource {
 
     @DELETE
     @Path("/{key}")
+    @Produces({MediaType.APPLICATION_JSON})
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML})
     public Response deleteObject(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                                  @PathParam("dbName") String dbName, @PathParam("key") String key,
                                  @QueryParam("index") Integer index, @QueryParam("id") Long id,
@@ -309,7 +333,7 @@ public class DbApiResource {
             }
             Long valId = DbService.getIdValue(value);
             valId = valId == null ? id : valId;
-            if (index == null && valId == null) {
+            if (index == null && valId == null && isNullOrEmptyValue(value)) {
                 // remove the Key completely
                 if (DbService.getDb(dbName).removeItem(key, sessionId, value)) {
                     return Response.ok().build();
@@ -383,6 +407,8 @@ public class DbApiResource {
 
     @DELETE
     @Path("/")
+    @Produces({MediaType.APPLICATION_JSON})
+    @Consumes({MediaType.APPLICATION_JSON, MediaType.APPLICATION_XML, MediaType.TEXT_PLAIN})
     public Response dropDb(@HeaderParam("API_KEY") String apiKey, @HeaderParam("SESSION_ID") String sessionId,
                               @PathParam("dbName") String dbName) {
         try {
@@ -414,5 +440,16 @@ public class DbApiResource {
         } else {
             return MediaType.APPLICATION_JSON_TYPE;
         }
+    }
+
+    protected boolean isNullOrEmptyValue(Object value) {
+        if (value == null) {
+            return true;
+        } else if (value instanceof List && ((List) value).isEmpty()) {
+            return true;
+        } else if (value instanceof Map && ((Map) value).isEmpty()) {
+            return true;
+        }
+        return false;
     }
 }

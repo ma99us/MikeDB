@@ -8,6 +8,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.stream.Collectors;
 
+import static org.maggus.mikedb.services.JsonUtils.MAX_SAFE_INTEGER;
+
 @Log
 public class DbService {
 
@@ -66,7 +68,25 @@ public class DbService {
     }
 
     public Object getItem(String key) {
-        return items.get(key);
+        return getItem(key, null);
+    }
+
+    public Object getItem(String key, String[] fieldNames) {
+        Object value = items.get(key);
+        if (value == null || fieldNames == null) {
+            return value;
+        }
+
+        // filter value object or list of objects by the field names
+        if (value instanceof List) {
+            List<Object> filtered = new ArrayList<>();
+            for (Object val : (List) value) {
+                filtered.add(JsonUtils.filterObjectFields(val, fieldNames));
+            }
+            return filtered;
+        } else {
+            return JsonUtils.filterObjectFields(value, fieldNames);
+        }
     }
 
     public synchronized boolean putItem(String key, Object value, String sessionId, Object val) throws IllegalArgumentException {
@@ -127,7 +147,7 @@ public class DbService {
         }
 
         // generate some "unique" id for the new Value map
-        Long id = System.nanoTime() + dbName.hashCode() + key.hashCode();
+        Long id = (System.nanoTime() + value.hashCode() + key.hashCode() + dbName.hashCode()) % MAX_SAFE_INTEGER;
         ((Map) value).put("id", id);
     }
 
@@ -156,10 +176,10 @@ public class DbService {
             return;
         }
         try {
-            storage.load();
+            storage.loadAll();
             log.info("Database \"" + dbName + "\" loaded with " + getItems().size() + " records");
         } catch (IOException ex) {
-            log.log(Level.SEVERE, dbName + " load failed", ex);
+            log.log(Level.SEVERE, dbName + " loadAll failed", ex);
         }
     }
 
@@ -221,7 +241,7 @@ public class DbService {
                 return ((Integer) valId).longValue();
             } else if (valId instanceof String) {
                 try {
-                    return Long.parseLong((String) valId);
+                    return Long.parseLong((String) valId) % MAX_SAFE_INTEGER;
                 } catch (NumberFormatException ex) {
                     log.warning("Unexpected 'id' value: " + valId);
                     return null;

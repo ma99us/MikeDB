@@ -3,43 +3,51 @@ package org.maggus.mikedb.services;
 import lombok.extern.java.Log;
 
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
-import java.util.Properties;
 
 @Log
 public class PersistenceService {
 
     private final DbService db;
-    private Properties props = new Properties();
-    private File itemsFile;
+    private Map<String, File> valuesFiles = new HashMap<>();
 
     protected PersistenceService(DbService db) {
         this.db = db;
     }
 
-    private File getItemsFile() throws IOException {
-        if (itemsFile == null) {
-            String homeDir = System.getProperty("user.home");
-            Path path = Paths.get(homeDir, ".mikedb", db.dbName, "items.db");
-            File file = path.toFile();
-            File dbDir = file.getParentFile();
-            if (!dbDir.isDirectory() && !dbDir.mkdirs()) {
-                throw new IOException("Can not create storage directory " + dbDir.getAbsolutePath());
-            }
-            itemsFile = file;
+    private File getDbDir() throws IOException {
+        String homeDir = System.getProperty("user.home");
+        Path path = Paths.get(homeDir, ".mikedb", db.dbName);
+        File dir = path.toFile();
+        if (!dir.isDirectory() && !dir.mkdirs()) {
+            throw new IOException("Can not create storage directory " + dir.getAbsolutePath());
         }
-        return itemsFile;
+        return dir;
     }
 
-    private File getValuesFile(String name) throws IOException {
-        String homeDir = System.getProperty("user.home");
-        Path path = Paths.get(homeDir, ".mikedb", db.dbName, name);
-        return path.toFile();
+    private File[] getAllDbFiles() throws IOException {
+        File dbDir = getDbDir();
+        return dbDir.listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.endsWith(".db");
+            }
+        });
+    }
+
+    private File getDbValueFile(String name) throws IOException {
+        File file = valuesFiles.get(name);
+        if (file != null) {
+            return file;
+        }
+        file = new File(getDbDir(), name + ".db");
+        valuesFiles.put(name, file);
+        return file;
     }
 
     /**
@@ -47,33 +55,18 @@ public class PersistenceService {
      *
      * @throws IOException
      */
-    public void load() throws IOException {
-        FileInputStream fi = null;
-        try {
-            File file = getItemsFile();
-            if (!file.isFile()) {
-                log.warning("No such database file: " + file.getAbsolutePath());
-                return;
-            }
-            fi = new FileInputStream(file);
-            props.load(fi);
-        } finally {
-            if (fi != null) {
-                fi.close();
-            }
-        }
+    public void loadAll() throws IOException {
+        File[] files = getAllDbFiles();
 
         final Map<String, Object> items = db.getItems();
-        for (String key : props.stringPropertyNames()) {
-            String property = props.getProperty(key);
-            if (property.startsWith("@v.") && property.endsWith(".db")) {
-                // read from external file
-                File file = getValuesFile(property.substring(1));
-                if (file.isFile()) {
-                    items.put(key, JsonUtils.fileToObject(file));
+        if (files != null) {
+            for (File file : files) {
+                String fName = file.getName();
+                if (!file.isFile() || !fName.endsWith(".db")) {
+                    continue;
                 }
-            } else {
-                items.put(key, JsonUtils.stringToObject(property));
+                String key = fName.substring(0, fName.length() - 3);
+                items.put(key, JsonUtils.fileToObject(file));
             }
         }
     }
@@ -88,38 +81,14 @@ public class PersistenceService {
     public void store(String key, Object value) throws IOException {
         if (value == null) {
             //delete old value files if any
-            String property = props.getProperty(key);
-            if (property != null && property.startsWith("@v.") && property.endsWith(".db")) {
-                // read from external file
-                File file = getValuesFile(property.substring(1));
-                if (file.isFile()) {
-                    file.delete();
-                }
+            File file = getDbValueFile(key);
+            if (file.isFile()) {
+                file.delete();
             }
-            props.remove(key);
         } else {
             String json = JsonUtils.objectToString(value);
-            if (json.length() > 1024) {
-                // store to external file
-                String val = "v." + key + ".db";
-                File file = getValuesFile(val);
-                if (JsonUtils.objectToFile(value, file)) {
-                    props.put(key, "@" + val);
-                }
-            } else {
-                props.put(key, json);
-            }
-        }
-
-        FileOutputStream fr = null;
-        try {
-            File file = getItemsFile();
-            fr = new FileOutputStream(file);
-            props.store(fr, "MikeDB database: " + db.dbName);
-        } finally {
-            if (fr != null) {
-                fr.close();
-            }
+            File file = getDbValueFile(key);
+            JsonUtils.objectToFile(value, file);
         }
     }
 
@@ -128,12 +97,15 @@ public class PersistenceService {
      * Assume database is empty. All records were already properly deleted.
      */
     public void delete() throws IOException {
-        if (itemsFile == null) {
+        File[] files = getAllDbFiles();
+        if (files == null || files.length == 0) {
             log.warning("No database files");
             return;
         }
-        File dbDir = itemsFile.getParentFile();
-        deleteDir(dbDir);
+        for (File file : files) {
+            file.delete();
+        }
+        deleteDir(getDbDir());
     }
 
     private void deleteDir(File dir) {
