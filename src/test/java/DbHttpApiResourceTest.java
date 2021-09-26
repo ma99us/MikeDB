@@ -1,5 +1,9 @@
 import lombok.Data;
+import org.glassfish.jersey.client.ClientConfig;
 import org.glassfish.jersey.client.HttpUrlConnectorProvider;
+import org.glassfish.jersey.media.multipart.FormDataMultiPart;
+import org.glassfish.jersey.media.multipart.MultiPartFeature;
+import org.glassfish.jersey.media.multipart.file.FileDataBodyPart;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.glassfish.jersey.test.JerseyTest;
 import org.junit.Assert;
@@ -9,7 +13,12 @@ import org.maggus.mikedb.DbHttpApiResource;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.client.WebTarget;
-import javax.ws.rs.core.*;
+import javax.ws.rs.core.Application;
+import javax.ws.rs.core.GenericType;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+import java.io.File;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -20,9 +29,15 @@ public class DbHttpApiResourceTest extends JerseyTest {
     @Override
     protected Application configure() {
         ResourceConfig config = new ResourceConfig(DbHttpApiResource.class);
-        //config.register(DbService.class);
         //config.packages("org.maggus.mikedb");
+        config.register(MultiPartFeature.class);
+//        config.register(InputStream.class);
         return config;
+    }
+
+    @Override
+    protected void configureClient(ClientConfig config) {
+        config.register(MultiPartFeature.class);
     }
 
     private Invocation.Builder decorateRequest(Invocation.Builder target) {
@@ -53,6 +68,7 @@ public class DbHttpApiResourceTest extends JerseyTest {
         WebTarget target = target("testDB");
         Exception ex = null;
         try {
+            ex = null;
             ObjectItem value3 = target.path("testItem3").request()
                     .header("API_KEY", "WrongHackyKey")
                     .get(new GenericType<ObjectItem>() {
@@ -65,6 +81,7 @@ public class DbHttpApiResourceTest extends JerseyTest {
         Assert.assertNotNull(ex);
 
         try {
+            ex = null;
             ObjectItem value3 = target.path("testItem3").request()
                     // no API_KEY header
                     .get(new GenericType<ObjectItem>() {
@@ -75,6 +92,35 @@ public class DbHttpApiResourceTest extends JerseyTest {
             ex = e;
         }
         Assert.assertNotNull(ex);
+    }
+
+    @Test
+    public void badDbNameKeyTest() throws Exception {
+        WebTarget target = target("test/DB");
+        Exception ex = null;
+        try {
+            ex = null;
+            ObjectItem value3 = decorateRequest(target.path("testItem3").request())
+                    .get(new GenericType<ObjectItem>() {
+                    });
+        } catch (javax.ws.rs.NotFoundException e) {
+            System.out.println("Expected NotFoundException: " + e.getMessage());
+            ex = e;
+        }
+        Assert.assertNotNull(ex);
+
+        target = target("testDB");
+//        try {
+            ex = null;
+            Response response = decorateRequest(target.path("testItem\\3").request())
+                    .post(Entity.entity("some string", MediaType.TEXT_PLAIN));
+            System.out.println(response);
+            Assert.assertEquals(500, response.getStatus());
+//        } catch (javax.ws.rs.InternalServerErrorException e) {
+//            System.out.println("Expected InternalServerErrorException: " + e.getMessage());
+//            ex = e;
+//            Assert.assertNotNull(ex);
+//        }
     }
 
     @Test
@@ -469,7 +515,7 @@ public class DbHttpApiResourceTest extends JerseyTest {
         item2.setAge(456);
         Response response = decorateRequest(target.path("testObject4").request())
                 .put(Entity.entity(new ObjectItem[]{item1, item2}, MediaType.APPLICATION_JSON));
-        Assert.assertEquals(201, response.getStatus());
+        Assert.assertTrue(201 == response.getStatus() || 200 == response.getStatus());
 
         // get items count
         int num = decorateRequest(target.path("testObject4").request())
@@ -952,6 +998,101 @@ public class DbHttpApiResourceTest extends JerseyTest {
         Assert.assertEquals(88, values.get(2).getAge().intValue());
     }
 
+    @Test
+    public void uploadDownloadImageTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        // clean up
+        Response response = decorateRequest(target.path("testFile1").request()).delete();
+
+        // upload an image
+//        final Client client = ClientBuilder.newBuilder().register(MultiPartFeature.class).build();
+        ClassLoader classLoader = getClass().getClassLoader();
+        File file = new File(classLoader.getResource("wings_logo_40.png").getFile());
+        long fileSize = file.length();
+        System.out.println("uploading: " + file.getAbsoluteFile());
+        final FileDataBodyPart filePart = new FileDataBodyPart("file", file);
+        FormDataMultiPart multipart = new FormDataMultiPart();
+        multipart.bodyPart(filePart);
+        response = decorateRequest(target.path("testFile1").request())
+                .post(Entity.entity(multipart, multipart.getMediaType()));
+        System.out.println(response);
+        Assert.assertEquals(201, response.getStatus());
+        multipart.close();
+
+        // download a file
+        response = decorateRequest(target.path("testFile1")
+                .request("image/png,image/jpeg"))
+                .get();
+        Assert.assertEquals(200, response.getStatus());
+        Assert.assertNotNull(response.readEntity(InputStream.class));
+
+        // download a file without security
+        response = target.path("testFile1")
+                .request("image/png,image/jpeg")
+                .get();
+        Assert.assertEquals(200, response.getStatus());
+        Assert.assertEquals(fileSize, response.getLength());
+        Assert.assertEquals("image/png", response.getMediaType().toString());
+        Assert.assertNotNull(response.readEntity(InputStream.class));
+    }
+
+    @Test
+    public void deleteImageTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        // upload an image
+//        final Client client = ClientBuilder.newBuilder().register(MultiPartFeature.class).build();
+        ClassLoader classLoader = getClass().getClassLoader();
+        File file = new File(classLoader.getResource("wings_logo_40.png").getFile());
+        final FileDataBodyPart filePart = new FileDataBodyPart("file", file);
+        FormDataMultiPart multipart = new FormDataMultiPart();
+        multipart.bodyPart(filePart);
+        Response response = decorateRequest(target.path("testFile1").request())
+                .post(Entity.entity(multipart, multipart.getMediaType()));
+        Assert.assertTrue(200 == response.getStatus() || 201 == response.getStatus());
+        multipart.close();
+
+        // clean up
+        response = decorateRequest(target.path("testFile1").request()).delete();
+        Assert.assertEquals(200, response.getStatus());
+
+        // download a file
+        response = decorateRequest(target.path("testFile1")
+                .request("image/png,image/jpeg"))
+                .get();
+        Assert.assertEquals(204, response.getStatus());
+    }
+
+    @Test
+    public void fileLengthTest() throws Exception {
+        WebTarget target = target("testDB");
+
+        // clean up
+        Response response = decorateRequest(target.path("testFile2").request()).delete();
+
+        // upload an image
+//        final Client client = ClientBuilder.newBuilder().register(MultiPartFeature.class).build();
+        ClassLoader classLoader = getClass().getClassLoader();
+        File file = new File(classLoader.getResource("dexter1.jpg").getFile());
+        long fileSize = file.length();
+//        System.out.println("uploading: " + file.getAbsoluteFile());
+        final FileDataBodyPart filePart = new FileDataBodyPart("file", file);
+        FormDataMultiPart multipart = new FormDataMultiPart();
+        multipart.bodyPart(filePart);
+        response = decorateRequest(target.path("testFile2").request())
+                .post(Entity.entity(multipart, multipart.getMediaType()));
+        System.out.println(response);
+        Assert.assertEquals(201, response.getStatus());
+        multipart.close();
+
+        // download a file
+        int len = decorateRequest(target.path("testFile2")
+                .request())
+                .head().getLength();
+        Assert.assertEquals(fileSize, len);
+    }
+
     private List<ObjectItem> makeObjectItemList(int num){
         List<ObjectItem> items  = new ArrayList<>(num);
         for (int i = 0; i < num; i++) {
@@ -962,11 +1103,12 @@ public class DbHttpApiResourceTest extends JerseyTest {
         }
         return items;
     }
+
+    @Data
+    private static class ObjectItem {
+        private Long id;
+        private String name;
+        private Integer age;
+    }
 }
 
-@Data
-class ObjectItem {
-    private Long id;
-    private String name;
-    private Integer age;
-}

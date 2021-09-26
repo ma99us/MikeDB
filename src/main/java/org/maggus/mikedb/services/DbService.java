@@ -1,6 +1,8 @@
 package org.maggus.mikedb.services;
 
 import lombok.extern.java.Log;
+import org.maggus.mikedb.data.FileItem;
+import org.maggus.mikedb.data.FileItemStream;
 
 import java.io.IOException;
 import java.util.*;
@@ -97,9 +99,9 @@ public class DbService {
             throw new IllegalArgumentException("Value can not be null");
         }
 
-        generateObjectId(key, value);   // augment a Map Onject with the generated "id" field, if missing
+        populateObjectId(key, value);   // augment a Map Object with the generated "id" field, if missing
 
-        items.put(key, value);
+        items.put(key, (value instanceof FileItemStream) ? ((FileItemStream) value).getFileItem() : value);
         return store(key, value, sessionId, val);
     }
 
@@ -133,22 +135,42 @@ public class DbService {
         return items;
     }
 
-    private void generateObjectId(String key, Object value) {
+    private Long populateObjectId(String key, Object value) {
         if (value instanceof List) {
-            ((List) value).stream().forEach(v -> generateObjectId(key, v)); //FIXME: can that generate duplicate ids?
-            return; // lists have no ids themselves
-        } else if (!(value instanceof Map)) {
-            return; // nothing to add to this Value
-        }
+            ((List) value).stream().forEach(v -> populateObjectId(key, v));
+            return null; // lists have no ids themselves
+        } else if (value instanceof Map) {
+            Long tryId = getIdValue(value);
+            if (tryId != null) {
+                return tryId; // Map value already has some id
+            }
 
-        Long tryId = getIdValue(value);
-        if (tryId != null) {
-            return; // Value already has some id
-        }
+            // populate the map with a new id
+            Long id = generateDbId(key, value);
+            ((Map) value).put("id", id);
+            return id;  // new id
+        } else if (value instanceof FileItemStream) {
+            Long tryId = getIdValue(value);
+            if (tryId != null) {
+                return tryId; // FileItem value already has some id
+            }
 
-        // generate some "unique" id for the new Value map
-        Long id = (System.nanoTime() + value.hashCode() + key.hashCode() + dbName.hashCode()) % MAX_SAFE_INTEGER;
-        ((Map) value).put("id", id);
+            // populate the FileItem with a new id
+            Long id = generateDbId(key, value);
+            ((FileItemStream) value).getFileItem().setId(id);
+            return id;
+        } else {
+            // nothing to add to this Value
+            return generateDbId(key, value);
+        }
+    }
+
+    /**
+     *  generate some "unique" id for the new Value map
+     * @return Long id number
+     */
+    private Long generateDbId(String key, Object value) {
+        return (System.nanoTime() + value.hashCode() + key.hashCode() + dbName.hashCode()) % MAX_SAFE_INTEGER;
     }
 
     protected boolean store(String key, Object value, String sessionId, Object val) {
@@ -160,7 +182,9 @@ public class DbService {
         }
         try {
             storage.store(key, value);
-            if (value != null) {
+            if (value != null && value instanceof FileItemStream) {
+                log.info("File '" + key + "' => " + ((FileItemStream)value).getFileItem().getName() + " added to \"" + dbName + "\" database;"); //#DEBUG
+            } else if (value != null) {
                 log.info("Record '" + key + "' => " + value.getClass().getSimpleName() + " added to \"" + dbName + "\" database; total records: " + items.size()); //#DEBUG
             } else {
                 log.info("Key '" + key + "' removed from \"" + dbName + "\" database; total records:" + items.size()); //#DEBUG
@@ -185,6 +209,7 @@ public class DbService {
 
     /**
      * Checks if the DB did not have any updates for at least an hour
+     *
      * @return true if DB had no updates recently
      */
     protected boolean isAbandoned() {
@@ -241,14 +266,18 @@ public class DbService {
                 return ((Integer) valId).longValue();
             } else if (valId instanceof String) {
                 try {
-                    return Long.parseLong((String) valId) % MAX_SAFE_INTEGER;
+                    return Long.parseLong((String) valId);  // % MAX_SAFE_INTEGER;
                 } catch (NumberFormatException ex) {
                     log.warning("Unexpected 'id' value: " + valId);
                     return null;
                 }
-            } else if(valId != null){
+            } else if (valId != null) {
                 log.warning("Unexpected 'id' type: " + valId);
             }
+        } else if (value instanceof FileItemStream) {
+            return ((FileItemStream) value).getFileItem().getId();
+        } else if (value instanceof FileItem) {
+            return ((FileItem) value).getId();
         }
         return null;
     }
